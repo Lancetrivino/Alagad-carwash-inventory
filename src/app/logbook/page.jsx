@@ -58,7 +58,7 @@ const S = {
   td: { padding: '11px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)', fontSize: 13 },
 }
 
-function Toggle({ active, onClick, color = '#fbbf24', borderColor = 'rgba(251,191,36,0.4)', bgColor = 'rgba(251,191,36,0.08)', label, extra }) {
+function Toggle({ active, onClick, color, borderColor, bgColor, label, extra }) {
   return (
     <div onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -85,6 +85,7 @@ function Toggle({ active, onClick, color = '#fbbf24', borderColor = 'rgba(251,19
 export default function LogbookPage() {
   const router = useRouter()
   const [logs, setLogs] = useState([])
+  const [crewList, setCrewList] = useState([])
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -105,13 +106,19 @@ export default function LogbookPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) router.push('/login')
-      else fetchLogs()
+      else { fetchLogs(); fetchCrewList() }
     })
   }, [])
 
   async function fetchLogs() {
     const res = await fetch('/api/logbook')
     setLogs(await res.json())
+  }
+
+  async function fetchCrewList() {
+    const res = await fetch('/api/crew')
+    const data = await res.json()
+    setCrewList(data.filter(c => c.active))
   }
 
   function toggleService(serviceName) {
@@ -339,9 +346,15 @@ export default function LogbookPage() {
                 </div>
               </div>
 
+              {/* Crew Dropdown */}
               <div>
                 <label style={S.label}>Crew</label>
-                <input style={S.input} type="text" value={crew} onChange={e => setCrew(e.target.value)} required placeholder="Enter crew name" />
+                <select style={S.select} value={crew} onChange={e => setCrew(e.target.value)} required>
+                  <option value="">Select crew member</option>
+                  {crewList.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Bill Breakdown */}
