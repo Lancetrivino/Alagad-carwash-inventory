@@ -6,37 +6,16 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 const VEHICLE_SIZES = [
-  { label: 'XSmall (₱140)', value: 'XSmall', base: 140 },
-  { label: 'Small (₱160)', value: 'Small', base: 160 },
-  { label: 'Medium (₱180)', value: 'Medium', base: 180 },
-  { label: 'Large (₱200)', value: 'Large', base: 200 },
-  { label: 'X-Large (₱220)', value: 'X-Large', base: 220 },
-  { label: 'XX-Large (₱250)', value: 'XX-Large', base: 250 },
-]
-
-const SERVICES = [
-  'Alagad Wash (Wash, Vacuum, Tire Black)',
-  'Premium Engine Wash',
-  'Bac to Zero',
-  'Interior Dressing',
-  'Spray Wax',
-  'Machine Wax',
-  'Acid Rain Removal',
-  'Headlight Ext. Polishing',
-  'Seat Cover Installation/Removal',
-  'Cement Removal',
-  'Asphalt Removal',
-  'Trim Black Restoration',
-  'Glass Detailing',
-  'Mags Detailing',
-  'Engine Detailing',
-  'Interior Detailing',
-  'Exterior Detailing',
-  'Ceramic Coating',
+  { label: 'XSmall (₱140)', value: 'XSmall' },
+  { label: 'Small (₱160)', value: 'Small' },
+  { label: 'Medium (₱180)', value: 'Medium' },
+  { label: 'Large (₱200)', value: 'Large' },
+  { label: 'X-Large (₱220)', value: 'X-Large' },
+  { label: 'XX-Large (₱250)', value: 'XX-Large' },
 ]
 
 const PRICES = {
-  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 230, 'X-Large': 250, 'XX-Large': 300 },
+  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 140, Small: 160, Medium: 180, Large: 200, 'X-Large': 220, 'XX-Large': 250 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
   'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200 },
@@ -91,12 +70,12 @@ export default function LogbookPage() {
   const [vehicleName, setVehicleName] = useState('')
   const [plateNo, setPlateNo] = useState('')
   const [vehicleSize, setVehicleSize] = useState('')
-  const [service, setService] = useState('')
-  const [amount, setAmount] = useState('')
+  const [selectedServices, setSelectedServices] = useState([])
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [crew, setCrew] = useState('')
   const [loggedAt, setLoggedAt] = useState(new Date().toISOString().slice(0, 16))
+  const [lateNight, setLateNight] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -105,22 +84,32 @@ export default function LogbookPage() {
     })
   }, [])
 
-  // Auto-fill amount when service + size selected
-  useEffect(() => {
-    if (service && vehicleSize && PRICES[service]?.[vehicleSize]) {
-      setAmount(PRICES[service][vehicleSize])
-    }
-  }, [service, vehicleSize])
-
   async function fetchLogs() {
     const res = await fetch('/api/logbook')
     setLogs(await res.json())
   }
 
-  const total = Math.max(0, (parseFloat(amount) || 0) - (parseFloat(discount) || 0))
+  function toggleService(serviceName) {
+    setSelectedServices(prev =>
+      prev.includes(serviceName)
+        ? prev.filter(s => s !== serviceName)
+        : [...prev, serviceName]
+    )
+  }
+
+  // Auto-compute amount from selected services + size
+  const servicesAmount = vehicleSize
+    ? selectedServices.reduce((sum, s) => sum + (PRICES[s]?.[vehicleSize] || 0), 0)
+    : 0
+  const lateNightFee = lateNight ? 30 : 0
+  const amount = servicesAmount + lateNightFee
+  const total = Math.max(0, amount - (parseFloat(discount) || 0))
+
+  const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (selectedServices.length === 0) { setError('Please select at least one service'); return }
     setLoading(true); setError('')
 
     await fetch('/api/logbook', {
@@ -130,8 +119,8 @@ export default function LogbookPage() {
         vehicle_name: vehicleName,
         plate_no: plateNo,
         vehicle_size: vehicleSize,
-        service,
-        amount: parseFloat(amount),
+        service: selectedServices.join(', '),
+        amount,
         discount: parseFloat(discount) || 0,
         total,
         payment_method: paymentMethod,
@@ -142,8 +131,9 @@ export default function LogbookPage() {
 
     setSuccess(true)
     setVehicleName(''); setPlateNo(''); setVehicleSize('')
-    setService(''); setAmount(''); setDiscount(0)
+    setSelectedServices([]); setDiscount(0)
     setPaymentMethod('Cash'); setCrew('')
+    setLateNight(false)
     setLoggedAt(new Date().toISOString().slice(0, 16))
     setLoading(false)
     fetchLogs()
@@ -154,10 +144,7 @@ export default function LogbookPage() {
     ? logs.filter(l => new Date(l.logged_at).toLocaleDateString('en-CA') === filterDate)
     : logs
 
-  const todayTotal = filteredLogs.reduce((s, l) => s + l.total, 0)
-  const todayCount = filteredLogs.length
-
-  const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
+  const filteredTotal = filteredLogs.reduce((s, l) => s + l.total, 0)
 
   return (
     <div style={S.page}>
@@ -185,7 +172,7 @@ export default function LogbookPage() {
         </div>
 
         {tab === 'form' && (
-          <div style={{ ...S.card, maxWidth: 680 }}>
+          <div style={{ ...S.card, maxWidth: 720 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>
               New Vehicle Entry
             </div>
@@ -196,11 +183,13 @@ export default function LogbookPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+              {/* Vehicle Info */}
               <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Vehicle Size</label>
-                  <select style={S.select} value={vehicleSize} onChange={e => { setVehicleSize(e.target.value); setVehicleName(''); setService(''); setAmount('') }} required>
+                  <select style={S.select} value={vehicleSize} onChange={e => { setVehicleSize(e.target.value); setVehicleName(''); setSelectedServices([]) }} required>
                     <option value="">Select size</option>
                     {VEHICLE_SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
@@ -208,12 +197,9 @@ export default function LogbookPage() {
                 <div>
                   <label style={S.label}>Vehicle / Model</label>
                   <input
-                    style={S.input}
-                    type="text"
-                    value={vehicleName}
-                    onChange={e => setVehicleName(e.target.value)}
-                    required
-                    placeholder={vehicleSize ? `e.g. ${suggestedVehicles[0] || 'Vehicle model'}` : 'Select size first'}
+                    style={S.input} type="text" value={vehicleName}
+                    onChange={e => setVehicleName(e.target.value)} required
+                    placeholder={vehicleSize ? `e.g. ${suggestedVehicles[0] || ''}` : 'Select size first'}
                     list="vehicle-suggestions"
                   />
                   <datalist id="vehicle-suggestions">
@@ -233,26 +219,95 @@ export default function LogbookPage() {
                 </div>
               </div>
 
+              {/* Services — Checkbox Grid */}
               <div>
-                <label style={S.label}>Service</label>
-                <select style={S.select} value={service} onChange={e => setService(e.target.value)} required>
-                  <option value="">Select service</option>
-                  {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <label style={S.label}>
+                  Services
+                  {selectedServices.length > 0 && (
+                    <span style={{ marginLeft: 8, background: 'var(--blue)', color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
+                      {selectedServices.length} selected
+                    </span>
+                  )}
+                </label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
+                  background: 'var(--navy-mid)', borderRadius: 10,
+                  border: '1px solid var(--border)', padding: 12,
+                  maxHeight: 280, overflowY: 'auto',
+                }}>
+                  {Object.keys(PRICES).map(serviceName => {
+                    const checked = selectedServices.includes(serviceName)
+                    const price = vehicleSize ? PRICES[serviceName]?.[vehicleSize] : null
+                    return (
+                      <div
+                        key={serviceName}
+                        onClick={() => toggleService(serviceName)}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
+                          border: checked ? '1px solid rgba(46,141,232,0.5)' : '1px solid transparent',
+                          background: checked ? 'rgba(46,141,232,0.12)' : 'transparent',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{
+                            width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                            border: checked ? '2px solid var(--blue-glow)' : '2px solid var(--border)',
+                            background: checked ? 'var(--blue-glow)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {checked && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </div>
+                          <span style={{ fontSize: 12, color: checked ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: checked ? 600 : 400 }}>
+                            {serviceName}
+                          </span>
+                        </div>
+                        {price && (
+                          <span style={{ fontSize: 11, color: 'var(--blue-glow)', fontWeight: 600, flexShrink: 0 }}>
+                            ₱{price.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {!vehicleSize && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Select vehicle size to see prices
+                  </div>
+                )}
+              </div>
+
+              {/* Late night toggle */}
+              <div
+                onClick={() => setLateNight(p => !p)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+                  border: lateNight ? '1px solid rgba(251,191,36,0.4)' : '1px solid var(--border)',
+                  background: lateNight ? 'rgba(251,191,36,0.08)' : 'var(--navy-mid)',
+                  transition: 'all 0.15s', width: 'fit-content',
+                }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  border: lateNight ? '2px solid #fbbf24' : '2px solid var(--border)',
+                  background: lateNight ? '#fbbf24' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {lateNight && <span style={{ color: '#000', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 13, color: lateNight ? '#fbbf24' : 'var(--text-secondary)', fontWeight: lateNight ? 600 : 400 }}>
+                  Beyond 6:00 PM (+₱30)
+                </span>
               </div>
 
               <div style={S.grid2}>
-                <div>
-                  <label style={S.label}>Amount (₱)</label>
-                  <input style={S.input} type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="Auto-filled by service + size" />
-                </div>
                 <div>
                   <label style={S.label}>Discount (₱)</label>
                   <input style={S.input} type="number" min="0" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" />
                 </div>
-              </div>
-
-              <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Payment Method</label>
                   <select style={S.select} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} required>
@@ -260,23 +315,41 @@ export default function LogbookPage() {
                     <option value="GCash">GCash</option>
                   </select>
                 </div>
-                <div>
-                  <label style={S.label}>Crew</label>
-                  <input style={S.input} type="text" value={crew} onChange={e => setCrew(e.target.value)} required placeholder="Enter crew name" />
-                </div>
               </div>
 
-              {/* Total Preview */}
+              <div>
+                <label style={S.label}>Crew</label>
+                <input style={S.input} type="text" value={crew} onChange={e => setCrew(e.target.value)} required placeholder="Enter crew name" />
+              </div>
+
+              {/* Bill breakdown */}
               <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                  <span>Amount</span><span>₱{(parseFloat(amount) || 0).toLocaleString()}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                  <span>Discount</span><span>- ₱{(parseFloat(discount) || 0).toLocaleString()}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--blue-glow)', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                  <span>Total</span><span>₱{total.toLocaleString()}</span>
-                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Bill Breakdown</div>
+                {selectedServices.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No services selected</div>
+                ) : (
+                  <>
+                    {selectedServices.map(s => (
+                      <div key={s} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                        <span>{s}</span>
+                        <span>₱{(vehicleSize ? PRICES[s]?.[vehicleSize] : 0)?.toLocaleString() || 0}</span>
+                      </div>
+                    ))}
+                    {lateNight && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#fbbf24', marginBottom: 6 }}>
+                        <span>Beyond 6:00 PM</span><span>+ ₱30</span>
+                      </div>
+                    )}
+                    {discount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#f87171', marginBottom: 6 }}>
+                        <span>Discount</span><span>- ₱{(parseFloat(discount) || 0).toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--blue-glow)', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                      <span>Total</span><span>₱{total.toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {error && <div style={{ fontSize: 13, color: '#f87171' }}>{error}</div>}
@@ -296,32 +369,25 @@ export default function LogbookPage() {
 
         {tab === 'logs' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Summary + Filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ ...S.card, padding: '14px 20px', display: 'flex', gap: 24 }}>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
                     {filterDate ? 'Filtered' : 'Total'} Entries
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{todayCount}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{filteredLogs.length}</div>
                 </div>
                 <div style={{ width: 1, background: 'var(--border)' }} />
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
                     {filterDate ? 'Filtered' : 'Total'} Revenue
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: '#4ade80' }}>₱{todayTotal.toLocaleString()}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#4ade80' }}>₱{filteredTotal.toLocaleString()}</div>
                 </div>
               </div>
               <div>
                 <label style={{ ...S.label, marginBottom: 6 }}>Filter by Date</label>
-                <input
-                  type="date"
-                  value={filterDate}
-                  onChange={e => setFilterDate(e.target.value)}
-                  style={{ ...S.input, width: 180 }}
-                />
+                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ ...S.input, width: 180 }} />
               </div>
               {filterDate && (
                 <button onClick={() => setFilterDate('')} style={{
@@ -332,17 +398,16 @@ export default function LogbookPage() {
               )}
             </div>
 
-            {/* Table */}
             <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 960 }}>
                   <thead>
                     <tr>
                       <th style={S.th}>Date & Time</th>
                       <th style={S.th}>Vehicle</th>
                       <th style={S.th}>Plate No.</th>
                       <th style={S.th}>Size</th>
-                      <th style={S.th}>Service</th>
+                      <th style={S.th}>Services</th>
                       <th style={{ ...S.th, textAlign: 'right' }}>Amount</th>
                       <th style={{ ...S.th, textAlign: 'right' }}>Discount</th>
                       <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
@@ -367,12 +432,20 @@ export default function LogbookPage() {
                         </td>
                         <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
                         <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{l.plate_no || '—'}</td>
-                        <td style={{ ...S.td }}>
+                        <td style={S.td}>
                           <span style={{ background: 'rgba(46,141,232,0.15)', color: 'var(--blue-glow)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
                             {l.vehicle_size}
                           </span>
                         </td>
-                        <td style={{ ...S.td, color: 'var(--text-secondary)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.service}</td>
+                        <td style={{ ...S.td, color: 'var(--text-secondary)', maxWidth: 200 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {l.service.split(', ').map((s, i) => (
+                              <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
                         <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{l.amount?.toLocaleString()}</td>
                         <td style={{ ...S.td, textAlign: 'right', color: '#f87171' }}>
                           {l.discount > 0 ? `- ₱${l.discount?.toLocaleString()}` : '—'}
@@ -382,7 +455,7 @@ export default function LogbookPage() {
                           <span style={{
                             background: l.payment_method === 'GCash' ? 'rgba(34,197,94,0.15)' : 'rgba(250,191,36,0.15)',
                             color: l.payment_method === 'GCash' ? '#4ade80' : '#fbbf24',
-                            padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600
+                            padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
                           }}>
                             {l.payment_method}
                           </span>
