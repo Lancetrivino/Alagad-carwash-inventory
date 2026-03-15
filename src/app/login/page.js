@@ -61,7 +61,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <img
-            src="/alagad-logo-ver-2.png"
+            src="/alagad-logo-ver-2.jpg"
             alt="Alagad Carwash"
             style={{
               width: 220,

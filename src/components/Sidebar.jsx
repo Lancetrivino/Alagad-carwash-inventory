@@ -41,7 +41,7 @@ export default function Sidebar() {
         gap: 8,
       }}>
         <img
-          src="/alagad-logo-ver-2.png"
+          src="/alagad-logo-ver-2.jpg"
           alt="Alagad Carwash"
           style={{
             width: 160,
