@@ -13,7 +13,7 @@ const S = {
   card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14 },
   metricLabel: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 },
   th: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600 },
-  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)' },
+  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)', fontSize: 13 },
 }
 
 export default function HistoryPage() {
@@ -32,6 +32,16 @@ export default function HistoryPage() {
     const res = await fetch('/api/transactions')
     setTransactions(await res.json())
     setLoading(false)
+  }
+
+  async function deleteTransaction(id) {
+    if (!confirm('Delete this transaction? This cannot be undone.')) return
+    await fetch('/api/transactions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    fetchTransactions()
   }
 
   const totalRevenue = transactions.reduce((s, t) => s + t.total, 0)
@@ -65,35 +75,52 @@ export default function HistoryPage() {
           ) : transactions.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No transactions yet.</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr>
-                  <th style={S.th}>Customer</th>
-                  <th style={S.th}>Chemical</th>
-                  <th style={{ ...S.th, textAlign: 'center' }}>Qty</th>
-                  <th style={{ ...S.th, textAlign: 'right' }}>Unit Price</th>
-                  <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
-                  <th style={{ ...S.th, textAlign: 'right' }}>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map(t => (
-                  <tr key={t.id}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <td style={{ ...S.td, fontWeight: 600 }}>{t.customer_name}</td>
-                    <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{t.product_name}</td>
-                    <td style={{ ...S.td, textAlign: 'center' }}>{t.quantity}</td>
-                    <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{t.unit_price?.toLocaleString()}</td>
-                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#4ade80' }}>₱{t.total?.toLocaleString()}</td>
-                    <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
-                      {new Date(t.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 800 }}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Customer</th>
+                    <th style={S.th}>Chemical</th>
+                    <th style={{ ...S.th, textAlign: 'center' }}>Qty</th>
+                    <th style={{ ...S.th, textAlign: 'right' }}>Unit Price</th>
+                    <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
+                    <th style={{ ...S.th, textAlign: 'right' }}>Date</th>
+                    <th style={{ ...S.th, textAlign: 'center' }}>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {transactions.map(t => (
+                    <tr key={t.id}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ ...S.td, fontWeight: 600 }}>{t.customer_name}</td>
+                      <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{t.product_name}</td>
+                      <td style={{ ...S.td, textAlign: 'center' }}>{t.quantity}</td>
+                      <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{t.unit_price?.toLocaleString()}</td>
+                      <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#4ade80' }}>₱{t.total?.toLocaleString()}</td>
+                      <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                        {new Date(t.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ ...S.td, textAlign: 'center' }}>
+                        <button
+                          onClick={() => deleteTransaction(t.id)}
+                          style={{
+                            padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                            background: 'rgba(248,113,113,0.1)', color: '#f87171',
+                            border: '1px solid rgba(248,113,113,0.3)',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </main>

@@ -13,8 +13,9 @@ const S = {
   card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px' },
   label: { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase' },
   input: { width: '100%', background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: "'Barlow', sans-serif" },
+  select: { width: '100%', background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: "'Barlow', sans-serif", appearance: 'none' },
   th: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600 },
-  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)' },
+  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)', fontSize: 13 },
 }
 
 function FilterBtn({ active, onClick, label }) {
@@ -50,12 +51,23 @@ export default function UsagePage() {
 
   async function fetchProducts() {
     const res = await fetch('/api/products')
-    setProducts((await res.json()).filter(p => p.qty > 0))
+    const data = await res.json()
+    setProducts(data.filter(p => p.qty > 0))
   }
 
   async function fetchUsage() {
     const res = await fetch('/api/usage')
     setUsageLog(await res.json())
+  }
+
+  async function deleteUsage(id) {
+    if (!confirm('Delete this usage record? This cannot be undone.')) return
+    await fetch('/api/usage', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    fetchUsage()
   }
 
   const product = products.find(p => p.id === parseInt(selectedProduct))
@@ -117,7 +129,7 @@ export default function UsagePage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={S.label}>Chemical</label>
-                <select style={{ ...S.input, appearance: 'none' }} value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }} required>
+                <select style={S.select} value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }} required>
                   <option value="">Select a chemical</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.qty} left)</option>)}
                 </select>
@@ -186,6 +198,7 @@ export default function UsagePage() {
                   <th style={S.th}>Chemical</th>
                   <th style={{ ...S.th, textAlign: 'center' }}>Qty Used</th>
                   <th style={{ ...S.th, textAlign: 'right' }}>Date</th>
+                  <th style={{ ...S.th, textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,6 +211,20 @@ export default function UsagePage() {
                     <td style={{ ...S.td, textAlign: 'center', color: 'var(--blue-glow)', fontWeight: 700 }}>{u.quantity}</td>
                     <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
                       {new Date(u.used_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </td>
+                    <td style={{ ...S.td, textAlign: 'center' }}>
+                      <button
+                        onClick={() => deleteUsage(u.id)}
+                        style={{
+                          padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                          cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                          background: 'rgba(248,113,113,0.1)', color: '#f87171',
+                          border: '1px solid rgba(248,113,113,0.3)',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
