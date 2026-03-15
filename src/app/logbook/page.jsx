@@ -121,6 +121,16 @@ export default function LogbookPage() {
     setCrewList(data.filter(c => c.active))
   }
 
+  async function deleteLog(id) {
+    if (!confirm('Delete this entry? This cannot be undone.')) return
+    await fetch('/api/logbook', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    fetchLogs()
+  }
+
   function toggleService(serviceName) {
     setSelectedServices(prev =>
       prev.includes(serviceName)
@@ -440,7 +450,7 @@ export default function LogbookPage() {
 
             <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 960 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1020 }}>
                   <thead>
                     <tr>
                       <th style={S.th}>Date & Time</th>
@@ -453,12 +463,13 @@ export default function LogbookPage() {
                       <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
                       <th style={{ ...S.th, textAlign: 'center' }}>Payment</th>
                       <th style={S.th}>Crew</th>
+                      <th style={{ ...S.th, textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={10} style={{ ...S.td, textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                        <td colSpan={11} style={{ ...S.td, textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
                           No entries found.
                         </td>
                       </tr>
@@ -501,6 +512,20 @@ export default function LogbookPage() {
                           </span>
                         </td>
                         <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{l.crew}</td>
+                        <td style={{ ...S.td, textAlign: 'center' }}>
+                          <button
+                            onClick={() => deleteLog(l.id)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                              cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                              background: 'rgba(248,113,113,0.1)', color: '#f87171',
+                              border: '1px solid rgba(248,113,113,0.3)',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
