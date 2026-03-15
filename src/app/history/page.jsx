@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
+const S = {
+  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Barlow', sans-serif", background: 'var(--navy)' },
+  main: { flex: 1, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 },
+  heading: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' },
+  sub: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
+  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14 },
+  metricLabel: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 },
+  th: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600 },
+  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)' },
+}
+
 export default function HistoryPage() {
   const router = useRouter()
   const [transactions, setTransactions] = useState([])
@@ -26,58 +37,58 @@ export default function HistoryPage() {
   const totalRevenue = transactions.reduce((s, t) => s + t.total, 0)
 
   return (
-    <div className="flex min-h-screen">
+    <div style={S.page}>
       <Sidebar />
-      <main className="flex-1 p-6 space-y-6">
+      <main style={S.main}>
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Transaction History</h1>
-          <p className="text-sm text-gray-500">All recorded sales</p>
+          <div style={S.heading}>Transaction History</div>
+          <div style={S.sub}>All recorded sales</div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 max-w-sm">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total Sales</p>
-            <p className="text-2xl font-semibold text-gray-900">{transactions.length}</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 200px))', gap: 14 }}>
+          <div style={{ ...S.card, padding: '18px 20px' }}>
+            <div style={S.metricLabel}>Total Sales</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)' }}>{transactions.length}</div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total Revenue</p>
-            <p className="text-lg font-semibold text-green-600">₱{totalRevenue.toLocaleString()}</p>
+          <div style={{ ...S.card, padding: '18px 20px' }}>
+            <div style={S.metricLabel}>Total Revenue</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#4ade80' }}>₱{totalRevenue.toLocaleString()}</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-medium text-gray-700">All Transactions</h2>
+        <div style={{ ...S.card, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>All Transactions</span>
           </div>
           {loading ? (
-            <p className="text-center text-gray-400 py-10 text-sm">Loading...</p>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>Loading...</div>
           ) : transactions.length === 0 ? (
-            <p className="text-center text-gray-400 py-10 text-sm">No transactions yet.</p>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No transactions yet.</div>
           ) : (
-            <table className="w-full text-sm">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
-                <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                  <th className="text-left px-5 py-3 font-medium">Customer</th>
-                  <th className="text-left px-5 py-3 font-medium">Chemical</th>
-                  <th className="text-center px-5 py-3 font-medium">Qty</th>
-                  <th className="text-right px-5 py-3 font-medium">Unit Price</th>
-                  <th className="text-right px-5 py-3 font-medium">Total</th>
-                  <th className="text-right px-5 py-3 font-medium">Date</th>
+                <tr>
+                  <th style={S.th}>Customer</th>
+                  <th style={S.th}>Chemical</th>
+                  <th style={{ ...S.th, textAlign: 'center' }}>Qty</th>
+                  <th style={{ ...S.th, textAlign: 'right' }}>Unit Price</th>
+                  <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
+                  <th style={{ ...S.th, textAlign: 'right' }}>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t, i) => (
-                  <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-5 py-3 font-medium text-gray-800">{t.customer_name}</td>
-                    <td className="px-5 py-3 text-gray-600">{t.product_name}</td>
-                    <td className="px-5 py-3 text-center text-gray-600">{t.quantity}</td>
-                    <td className="px-5 py-3 text-right text-gray-500">₱{t.unit_price?.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">₱{t.total?.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right text-gray-400">
-                      {new Date(t.created_at).toLocaleString('en-PH', {
-                        month: 'short', day: 'numeric',
-                        hour: '2-digit', minute: '2-digit'
-                      })}
+                {transactions.map(t => (
+                  <tr key={t.id}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ ...S.td, fontWeight: 600 }}>{t.customer_name}</td>
+                    <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{t.product_name}</td>
+                    <td style={{ ...S.td, textAlign: 'center' }}>{t.quantity}</td>
+                    <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{t.unit_price?.toLocaleString()}</td>
+                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#4ade80' }}>₱{t.total?.toLocaleString()}</td>
+                    <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                      {new Date(t.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
                   </tr>
                 ))}

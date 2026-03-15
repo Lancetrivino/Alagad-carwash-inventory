@@ -5,6 +5,16 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
+const S = {
+  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Barlow', sans-serif", background: 'var(--navy)' },
+  main: { flex: 1, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 },
+  heading: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' },
+  sub: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
+  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px' },
+  label: { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  input: { width: '100%', background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: "'Barlow', sans-serif" },
+}
+
 export default function SalesPage() {
   const router = useRouter()
   const [products, setProducts] = useState([])
@@ -34,133 +44,84 @@ export default function SalesPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!product) return
-    if (quantity > product.qty) {
-      setError(`Only ${product.qty} units available`)
-      return
-    }
-
-    setLoading(true)
-    setError('')
-
+    if (quantity > product.qty) { setError(`Only ${product.qty} units available`); return }
+    setLoading(true); setError('')
     await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: customerName,
-        product_id: product.id,
-        product_name: product.name,
-        quantity,
-        unit_price: product.price,
-        total,
-      }),
+      body: JSON.stringify({ customer_name: customerName, product_id: product.id, product_name: product.name, quantity, unit_price: product.price, total }),
     })
-
     await fetch('/api/products', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: product.id,
-        qty: product.qty - quantity,
-        action: 'Sold',
-        prev_qty: product.qty,
-      }),
+      body: JSON.stringify({ id: product.id, qty: product.qty - quantity, action: 'Sold', prev_qty: product.qty }),
     })
-
-    setSuccess(true)
-    setCustomerName('')
-    setSelectedProduct('')
-    setQuantity(1)
-    setLoading(false)
+    setSuccess(true); setCustomerName(''); setSelectedProduct(''); setQuantity(1); setLoading(false)
     fetchProducts()
     setTimeout(() => setSuccess(false), 3000)
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div style={S.page}>
       <Sidebar />
-      <main className="flex-1 p-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-gray-900">New Sale</h1>
-          <p className="text-sm text-gray-500">Record a chemical purchase</p>
+      <main style={S.main}>
+        <div>
+          <div style={S.heading}>New Sale</div>
+          <div style={S.sub}>Record a chemical purchase</div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
+        <div style={{ ...S.card, maxWidth: 500 }}>
           {success && (
-            <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+            <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#4ade80', marginBottom: 20 }}>
               Sale recorded successfully!
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-                required
-                placeholder="Enter customer name"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100"
-              />
+              <label style={S.label}>Customer Name</label>
+              <input style={S.input} type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} required placeholder="Enter customer name" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Chemical</label>
-              <select
-                value={selectedProduct}
-                onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 bg-white"
-              >
+              <label style={S.label}>Chemical</label>
+              <select style={{ ...S.input, appearance: 'none' }} value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }} required>
                 <option value="">Select a chemical</option>
                 {products.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — ₱{p.price?.toLocaleString()} ({p.qty} left)
-                  </option>
+                  <option key={p.id} value={p.id}>{p.name} — ₱{p.price?.toLocaleString()} ({p.qty} left)</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input
-                type="number"
-                min="1"
-                max={product?.qty || 1}
-                value={quantity}
-                onChange={e => setQuantity(parseInt(e.target.value))}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100"
-              />
-              {product && (
-                <p className="text-xs text-gray-400 mt-1">{product.qty} units available</p>
-              )}
+              <label style={S.label}>Quantity</label>
+              <input style={S.input} type="number" min="1" max={product?.qty || 1} value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} required />
+              {product && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{product.qty} units available</div>}
             </div>
 
             {product && (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Unit Price</span>
-                  <span>₱{product.price?.toLocaleString()}</span>
+              <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  <span>Unit Price</span><span>₱{product.price?.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <span>Quantity</span>
-                  <span>{quantity}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                  <span>Quantity</span><span>{quantity}</span>
                 </div>
-                <div className="flex justify-between text-base font-semibold text-gray-900 border-t border-gray-200 pt-2 mt-2">
-                  <span>Total</span>
-                  <span>₱{total.toLocaleString()}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--blue-glow)', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                  <span>Total</span><span>₱{total.toLocaleString()}</span>
                 </div>
               </div>
             )}
 
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && <div style={{ fontSize: 13, color: '#f87171' }}>{error}</div>}
 
-            <button
-              type="submit"
-              disabled={loading || !product}
-              className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading || !product} style={{
+              background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
+              color: '#fff', border: 'none', borderRadius: 10, padding: '13px',
+              fontSize: 14, fontWeight: 700, cursor: loading || !product ? 'not-allowed' : 'pointer',
+              opacity: loading || !product ? 0.5 : 1,
+              fontFamily: "'Barlow', sans-serif", letterSpacing: '0.05em', textTransform: 'uppercase',
+            }}>
               {loading ? 'Recording...' : 'Record Sale'}
             </button>
           </form>

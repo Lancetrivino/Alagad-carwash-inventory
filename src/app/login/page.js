@@ -15,9 +15,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-
     if (error) {
       setError('Invalid email or password')
       setLoading(false)
@@ -27,49 +25,146 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 w-full max-w-sm shadow-sm">
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--navy)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: "'Barlow', sans-serif",
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
 
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-xl font-bold">A</span>
+      {/* Background decorative circles */}
+      <div style={{
+        position: 'absolute', width: 500, height: 500,
+        borderRadius: '50%', border: '1px solid rgba(46,141,232,0.08)',
+        top: -100, left: -100, pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'absolute', width: 300, height: 300,
+        borderRadius: '50%', border: '1px solid rgba(46,141,232,0.06)',
+        bottom: -50, right: -50, pointerEvents: 'none'
+      }} />
+
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 20,
+        padding: '48px 40px',
+        width: '100%',
+        maxWidth: 400,
+        position: 'relative',
+      }}>
+
+        {/* Logo area */}
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{
+            width: 64, height: 64,
+            background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
+            borderRadius: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: 28,
+          }}>🚗</div>
+          <div style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 22, fontWeight: 700,
+            color: 'var(--text-primary)',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+          }}>Alagad Carwash</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            & Auto Detailing
           </div>
-          <h1 className="text-xl font-semibold text-gray-900">Alagad Carwash</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in to your dashboard</p>
+          <div style={{
+            width: 40, height: 2,
+            background: 'linear-gradient(90deg, var(--blue), var(--blue-glow))',
+            margin: '14px auto 0', borderRadius: 2
+          }} />
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Email
+            </label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-              placeholder="admin@alagad.com"
+              placeholder="admin@alagadcarwash.com"
+              style={{
+                width: '100%',
+                background: 'var(--navy-mid)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontSize: 14,
+                color: 'var(--text-primary)',
+                outline: 'none',
+                fontFamily: "'Barlow', sans-serif",
+              }}
             />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Password
+            </label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               placeholder="••••••••"
+              style={{
+                width: '100%',
+                background: 'var(--navy-mid)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontSize: 14,
+                color: 'var(--text-primary)',
+                outline: 'none',
+                fontFamily: "'Barlow', sans-serif",
+              }}
             />
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && (
+            <div style={{
+              background: 'rgba(220,50,50,0.1)',
+              border: '1px solid rgba(220,50,50,0.3)',
+              borderRadius: 8, padding: '10px 14px',
+              fontSize: 13, color: '#f87171'
+            }}>
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            style={{
+              marginTop: 8,
+              background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px',
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: "'Barlow', sans-serif",
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

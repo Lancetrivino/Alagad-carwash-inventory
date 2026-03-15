@@ -5,6 +5,30 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
+const S = {
+  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Barlow', sans-serif", background: 'var(--navy)' },
+  main: { flex: 1, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 },
+  heading: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' },
+  sub: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
+  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px' },
+  label: { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase' },
+  input: { width: '100%', background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: "'Barlow', sans-serif" },
+  th: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600 },
+  td: { padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)' },
+}
+
+function FilterBtn({ active, onClick, label }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+      fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+      background: active ? 'var(--blue)' : 'var(--navy-mid)',
+      color: active ? '#fff' : 'var(--text-secondary)',
+      border: active ? '1px solid var(--blue)' : '1px solid var(--border)',
+    }}>{label}</button>
+  )
+}
+
 export default function UsagePage() {
   const router = useRouter()
   const [products, setProducts] = useState([])
@@ -26,8 +50,7 @@ export default function UsagePage() {
 
   async function fetchProducts() {
     const res = await fetch('/api/products')
-    const data = await res.json()
-    setProducts(data.filter(p => p.qty > 0))
+    setProducts((await res.json()).filter(p => p.qty > 0))
   }
 
   async function fetchUsage() {
@@ -40,222 +63,141 @@ export default function UsagePage() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!product) return
-    if (quantity > product.qty) {
-      setError(`Only ${product.qty} units available`)
-      return
-    }
-
-    setLoading(true)
-    setError('')
-
+    if (quantity > product.qty) { setError(`Only ${product.qty} units available`); return }
+    setLoading(true); setError('')
     await fetch('/api/usage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        product_id: product.id,
-        product_name: product.name,
-        quantity,
-        used_at: usedAt,
-      }),
+      body: JSON.stringify({ product_id: product.id, product_name: product.name, quantity, used_at: usedAt }),
     })
-
     await fetch('/api/products', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: product.id,
-        qty: product.qty - quantity,
-        action: 'Used',
-        prev_qty: product.qty,
-      }),
+      body: JSON.stringify({ id: product.id, qty: product.qty - quantity, action: 'Used', prev_qty: product.qty }),
     })
-
-    setSuccess(true)
-    setSelectedProduct('')
-    setQuantity(1)
+    setSuccess(true); setSelectedProduct(''); setQuantity(1)
     setUsedAt(new Date().toISOString().split('T')[0])
-    setLoading(false)
-    fetchProducts()
-    fetchUsage()
+    setLoading(false); fetchProducts(); fetchUsage()
     setTimeout(() => setSuccess(false), 3000)
   }
 
-  // Filter logic
   const now = new Date()
   const filtered = usageLog.filter(u => {
     const date = new Date(u.used_at)
-    if (filter === 'week') {
-      const weekAgo = new Date(now)
-      weekAgo.setDate(now.getDate() - 7)
-      return date >= weekAgo
-    }
-    if (filter === 'month') {
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-    }
+    if (filter === 'week') { const w = new Date(now); w.setDate(now.getDate() - 7); return date >= w }
+    if (filter === 'month') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
     return true
   })
 
-  // Group by product for summary
   const summary = filtered.reduce((acc, u) => {
     acc[u.product_name] = (acc[u.product_name] || 0) + u.quantity
     return acc
   }, {})
 
   return (
-    <div className="flex min-h-screen">
+    <div style={S.page}>
       <Sidebar />
-      <main className="flex-1 p-6 space-y-6">
+      <main style={S.main}>
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Chemical Usage</h1>
-          <p className="text-sm text-gray-500">Log chemicals used for car wash services</p>
+          <div style={S.heading}>Chemical Usage</div>
+          <div style={S.sub}>Log chemicals used for car wash services</div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {/* Form */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-medium text-gray-700 mb-4">Log Usage</h2>
+          <div style={S.card}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>Log Usage</div>
 
             {success && (
-              <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#4ade80', marginBottom: 16 }}>
                 Usage logged successfully!
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Chemical</label>
-                <select
-                  value={selectedProduct}
-                  onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }}
-                  required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 bg-white"
-                >
+                <label style={S.label}>Chemical</label>
+                <select style={{ ...S.input, appearance: 'none' }} value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }} required>
                   <option value="">Select a chemical</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.qty} left)
-                    </option>
-                  ))}
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.qty} left)</option>)}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity Used</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={product?.qty || 1}
-                  value={quantity}
-                  onChange={e => setQuantity(parseInt(e.target.value))}
-                  required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100"
-                />
-                {product && (
-                  <p className="text-xs text-gray-400 mt-1">{product.qty} units available</p>
-                )}
+                <label style={S.label}>Quantity Used</label>
+                <input style={S.input} type="number" min="1" max={product?.qty || 1} value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} required />
+                {product && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{product.qty} units available</div>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date Used</label>
-                <input
-                  type="date"
-                  value={usedAt}
-                  onChange={e => setUsedAt(e.target.value)}
-                  required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-100"
-                />
+                <label style={S.label}>Date Used</label>
+                <input style={S.input} type="date" value={usedAt} onChange={e => setUsedAt(e.target.value)} required />
               </div>
-
-              {error && <p className="text-sm text-red-500">{error}</p>}
-
-              <button
-                type="submit"
-                disabled={loading || !product}
-                className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
+              {error && <div style={{ fontSize: 13, color: '#f87171' }}>{error}</div>}
+              <button type="submit" disabled={loading || !product} style={{
+                background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
+                color: '#fff', border: 'none', borderRadius: 10, padding: '13px',
+                fontSize: 14, fontWeight: 700, cursor: loading || !product ? 'not-allowed' : 'pointer',
+                opacity: loading || !product ? 0.5 : 1,
+                fontFamily: "'Barlow', sans-serif", letterSpacing: '0.05em', textTransform: 'uppercase',
+              }}>
                 {loading ? 'Logging...' : 'Log Usage'}
               </button>
             </form>
           </div>
 
           {/* Summary */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-gray-700">Usage Summary</h2>
-              <div className="flex gap-1">
-                {['all', 'month', 'week'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                      filter === f
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {f === 'all' ? 'All time' : f === 'month' ? 'This month' : 'This week'}
-                  </button>
-                ))}
+          <div style={S.card}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Usage Summary</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
+                <FilterBtn active={filter === 'month'} onClick={() => setFilter('month')} label="Month" />
+                <FilterBtn active={filter === 'week'} onClick={() => setFilter('week')} label="Week" />
               </div>
             </div>
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {Object.keys(summary).length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No usage recorded yet.</p>
-              ) : (
-                Object.entries(summary)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([name, qty]) => (
-                    <div key={name} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <span className="text-sm text-gray-700">{name}</span>
-                      <span className="text-sm font-semibold text-gray-900">{qty} units</span>
-                    </div>
-                  ))
-              )}
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>No usage recorded yet.</div>
+              ) : Object.entries(summary).sort((a, b) => b[1] - a[1]).map(([name, qty]) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(30,58,82,0.5)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--blue-glow)' }}>{qty} units</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Usage Log Table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-medium text-gray-700">Usage Log</h2>
-            <div className="flex gap-1">
-              {['all', 'month', 'week'].map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                    filter === f
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {f === 'all' ? 'All time' : f === 'month' ? 'This month' : 'This week'}
-                </button>
-              ))}
+        {/* Log Table */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Usage Log</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
+              <FilterBtn active={filter === 'month'} onClick={() => setFilter('month')} label="Month" />
+              <FilterBtn active={filter === 'week'} onClick={() => setFilter('week')} label="Week" />
             </div>
           </div>
           {filtered.length === 0 ? (
-            <p className="text-center text-gray-400 py-10 text-sm">No usage records found.</p>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No usage records found.</div>
           ) : (
-            <table className="w-full text-sm">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
-                <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                  <th className="text-left px-5 py-3 font-medium">Chemical</th>
-                  <th className="text-center px-5 py-3 font-medium">Qty Used</th>
-                  <th className="text-right px-5 py-3 font-medium">Date</th>
+                <tr>
+                  <th style={S.th}>Chemical</th>
+                  <th style={{ ...S.th, textAlign: 'center' }}>Qty Used</th>
+                  <th style={{ ...S.th, textAlign: 'right' }}>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u, i) => (
-                  <tr key={u.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-5 py-3 font-medium text-gray-800">{u.product_name}</td>
-                    <td className="px-5 py-3 text-center text-gray-600">{u.quantity}</td>
-                    <td className="px-5 py-3 text-right text-gray-400">
-                      {new Date(u.used_at).toLocaleDateString('en-PH', {
-                        year: 'numeric', month: 'short', day: 'numeric'
-                      })}
+                {filtered.map(u => (
+                  <tr key={u.id}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ ...S.td, fontWeight: 600 }}>{u.product_name}</td>
+                    <td style={{ ...S.td, textAlign: 'center', color: 'var(--blue-glow)', fontWeight: 700 }}>{u.quantity}</td>
+                    <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                      {new Date(u.used_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </td>
                   </tr>
                 ))}
@@ -263,7 +205,6 @@ export default function UsagePage() {
             </table>
           )}
         </div>
-
       </main>
     </div>
   )
