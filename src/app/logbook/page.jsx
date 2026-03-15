@@ -58,6 +58,30 @@ const S = {
   td: { padding: '11px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', color: 'var(--text-primary)', fontSize: 13 },
 }
 
+function Toggle({ active, onClick, color = '#fbbf24', borderColor = 'rgba(251,191,36,0.4)', bgColor = 'rgba(251,191,36,0.08)', label, extra }) {
+  return (
+    <div onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+      border: active ? `1px solid ${borderColor}` : '1px solid var(--border)',
+      background: active ? bgColor : 'var(--navy-mid)',
+      transition: 'all 0.15s', width: 'fit-content',
+    }}>
+      <div style={{
+        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+        border: active ? `2px solid ${color}` : '2px solid var(--border)',
+        background: active ? color : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {active && <span style={{ color: '#000', fontSize: 10, fontWeight: 700 }}>✓</span>}
+      </div>
+      <span style={{ fontSize: 13, color: active ? color : 'var(--text-secondary)', fontWeight: active ? 600 : 400 }}>
+        {label} {extra && <span style={{ fontSize: 11, opacity: 0.8 }}>{extra}</span>}
+      </span>
+    </div>
+  )
+}
+
 export default function LogbookPage() {
   const router = useRouter()
   const [logs, setLogs] = useState([])
@@ -76,6 +100,7 @@ export default function LogbookPage() {
   const [crew, setCrew] = useState('')
   const [loggedAt, setLoggedAt] = useState(new Date().toISOString().slice(0, 16))
   const [lateNight, setLateNight] = useState(false)
+  const [rollbar, setRollbar] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -97,12 +122,12 @@ export default function LogbookPage() {
     )
   }
 
-  // Auto-compute amount from selected services + size
   const servicesAmount = vehicleSize
     ? selectedServices.reduce((sum, s) => sum + (PRICES[s]?.[vehicleSize] || 0), 0)
     : 0
   const lateNightFee = lateNight ? 30 : 0
-  const amount = servicesAmount + lateNightFee
+  const rollbarFee = rollbar ? 20 : 0
+  const amount = servicesAmount + lateNightFee + rollbarFee
   const total = Math.max(0, amount - (parseFloat(discount) || 0))
 
   const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
@@ -133,7 +158,7 @@ export default function LogbookPage() {
     setVehicleName(''); setPlateNo(''); setVehicleSize('')
     setSelectedServices([]); setDiscount(0)
     setPaymentMethod('Cash'); setCrew('')
-    setLateNight(false)
+    setLateNight(false); setRollbar(false)
     setLoggedAt(new Date().toISOString().slice(0, 16))
     setLoading(false)
     fetchLogs()
@@ -185,7 +210,6 @@ export default function LogbookPage() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-              {/* Vehicle Info */}
               <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Vehicle Size</label>
@@ -219,7 +243,7 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              {/* Services — Checkbox Grid */}
+              {/* Services Checkbox Grid */}
               <div>
                 <label style={S.label}>
                   Services
@@ -279,28 +303,26 @@ export default function LogbookPage() {
                 )}
               </div>
 
-              {/* Late night toggle */}
-              <div
-                onClick={() => setLateNight(p => !p)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                  border: lateNight ? '1px solid rgba(251,191,36,0.4)' : '1px solid var(--border)',
-                  background: lateNight ? 'rgba(251,191,36,0.08)' : 'var(--navy-mid)',
-                  transition: 'all 0.15s', width: 'fit-content',
-                }}
-              >
-                <div style={{
-                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                  border: lateNight ? '2px solid #fbbf24' : '2px solid var(--border)',
-                  background: lateNight ? '#fbbf24' : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {lateNight && <span style={{ color: '#000', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                </div>
-                <span style={{ fontSize: 13, color: lateNight ? '#fbbf24' : 'var(--text-secondary)', fontWeight: lateNight ? 600 : 400 }}>
-                  Beyond 6:00 PM (+₱30)
-                </span>
+              {/* Extra Fees */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <Toggle
+                  active={lateNight}
+                  onClick={() => setLateNight(p => !p)}
+                  color="#fbbf24"
+                  borderColor="rgba(251,191,36,0.4)"
+                  bgColor="rgba(251,191,36,0.08)"
+                  label="Beyond 6:00 PM"
+                  extra="(+₱30)"
+                />
+                <Toggle
+                  active={rollbar}
+                  onClick={() => setRollbar(p => !p)}
+                  color="#a855f7"
+                  borderColor="rgba(168,85,247,0.4)"
+                  bgColor="rgba(168,85,247,0.08)"
+                  label="W/ Rollbar / Bullbar"
+                  extra="(+₱20)"
+                />
               </div>
 
               <div style={S.grid2}>
@@ -322,7 +344,7 @@ export default function LogbookPage() {
                 <input style={S.input} type="text" value={crew} onChange={e => setCrew(e.target.value)} required placeholder="Enter crew name" />
               </div>
 
-              {/* Bill breakdown */}
+              {/* Bill Breakdown */}
               <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Bill Breakdown</div>
                 {selectedServices.length === 0 ? (
@@ -338,6 +360,11 @@ export default function LogbookPage() {
                     {lateNight && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#fbbf24', marginBottom: 6 }}>
                         <span>Beyond 6:00 PM</span><span>+ ₱30</span>
+                      </div>
+                    )}
+                    {rollbar && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#a855f7', marginBottom: 6 }}>
+                        <span>W/ Rollbar / Bullbar</span><span>+ ₱20</span>
                       </div>
                     )}
                     {discount > 0 && (
@@ -437,10 +464,10 @@ export default function LogbookPage() {
                             {l.vehicle_size}
                           </span>
                         </td>
-                        <td style={{ ...S.td, color: 'var(--text-secondary)', maxWidth: 200 }}>
+                        <td style={{ ...S.td, maxWidth: 200 }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {l.service.split(', ').map((s, i) => (
-                              <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap' }}>
+                              <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
                                 {s}
                               </span>
                             ))}
