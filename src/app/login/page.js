@@ -58,36 +58,40 @@ export default function LoginPage() {
         position: 'relative',
       }}>
 
-        {/* Logo area */}
+        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{
-            width: 64, height: 64,
-            background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
-            borderRadius: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-            fontSize: 28,
-          }}>🚗</div>
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 22, fontWeight: 700,
-            color: 'var(--text-primary)',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-          }}>Alagad Carwash</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            & Auto Detailing
-          </div>
+          <img
+            src="/alagad-logo.png"
+            alt="Alagad Carwash"
+            style={{
+              width: 220,
+              height: 100,
+              objectFit: 'contain',
+              display: 'block',
+              margin: '0 auto 12px',
+            }}
+          />
           <div style={{
             width: 40, height: 2,
             background: 'linear-gradient(90deg, var(--blue), var(--blue-glow))',
-            margin: '14px auto 0', borderRadius: 2
+            margin: '0 auto', borderRadius: 2
           }} />
+          <div style={{
+            fontSize: 12, color: 'var(--text-muted)',
+            marginTop: 10, letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+          }}>
+            Inventory Management System
+          </div>
         </div>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 600,
+              color: 'var(--text-secondary)', marginBottom: 8,
+              letterSpacing: '0.08em', textTransform: 'uppercase'
+            }}>
               Email
             </label>
             <input
@@ -111,7 +115,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 600,
+              color: 'var(--text-secondary)', marginBottom: 8,
+              letterSpacing: '0.08em', textTransform: 'uppercase'
+            }}>
               Password
             </label>
             <input
