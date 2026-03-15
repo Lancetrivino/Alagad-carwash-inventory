@@ -99,7 +99,6 @@ export default function LogbookPage() {
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [crew, setCrew] = useState('')
-  const [loggedAt, setLoggedAt] = useState(new Date().toISOString().slice(0, 16))
   const [lateNight, setLateNight] = useState(false)
   const [rollbar, setRollbar] = useState(false)
 
@@ -167,7 +166,7 @@ export default function LogbookPage() {
         total,
         payment_method: paymentMethod,
         crew,
-        logged_at: new Date(loggedAt).toISOString(),
+        logged_at: new Date().toISOString(),
       }),
     })
 
@@ -176,7 +175,6 @@ export default function LogbookPage() {
     setSelectedServices([]); setDiscount(0)
     setPaymentMethod('Cash'); setCrew('')
     setLateNight(false); setRollbar(false)
-    setLoggedAt(new Date().toISOString().slice(0, 16))
     setLoading(false)
     fetchLogs()
     setTimeout(() => setSuccess(false), 3000)
@@ -194,7 +192,7 @@ export default function LogbookPage() {
       <main style={S.main}>
         <div>
           <div style={S.heading}>Vehicle Logbook</div>
-          <div style={S.sub}>Record every car wash service</div>
+          <div style={S.sub}>Record every car wash service — date & time auto-captured</div>
         </div>
 
         {/* Tabs */}
@@ -249,15 +247,9 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              <div style={S.grid2}>
-                <div>
-                  <label style={S.label}>Plate No.</label>
-                  <input style={S.input} type="text" value={plateNo} onChange={e => setPlateNo(e.target.value.toUpperCase())} placeholder="e.g. ABC 1234" />
-                </div>
-                <div>
-                  <label style={S.label}>Date & Time</label>
-                  <input style={S.input} type="datetime-local" value={loggedAt} onChange={e => setLoggedAt(e.target.value)} required />
-                </div>
+              <div>
+                <label style={S.label}>Plate No.</label>
+                <input style={S.input} type="text" value={plateNo} onChange={e => setPlateNo(e.target.value.toUpperCase())} placeholder="e.g. ABC 1234" />
               </div>
 
               {/* Services Checkbox Grid */}
