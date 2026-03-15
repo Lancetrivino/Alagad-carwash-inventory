@@ -44,10 +44,14 @@ export default function Sidebar() {
           src="/alagad-logo-ver-2.jpg"
           alt="Alagad Carwash"
           style={{
-            width: 160,
-            height: 70,
-            objectFit: 'contain',
-          }}
+            width: 80,
+            height: 80,
+            objectFit: 'cover',
+            borderRadius: '50%',
+            border: '2px solid var(--blue)',
+            display: 'block',
+            margin: '0 auto',
+            }}
         />
         <div style={{
           fontSize: 10,

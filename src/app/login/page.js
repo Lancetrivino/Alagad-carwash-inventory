@@ -64,12 +64,15 @@ export default function LoginPage() {
             src="/alagad-logo-ver-2.jpg"
             alt="Alagad Carwash"
             style={{
-              width: 220,
-              height: 100,
-              objectFit: 'contain',
-              display: 'block',
-              margin: '0 auto 12px',
-            }}
+                width: 120,
+                height: 120,
+                objectFit: 'cover',
+                borderRadius: '50%',
+                border: '3px solid var(--blue)',
+                display: 'block',
+                margin: '0 auto 16px',
+                boxShadow: '0 0 24px rgba(46,141,232,0.3)',
+         }}
           />
           <div style={{
             width: 40, height: 2,
