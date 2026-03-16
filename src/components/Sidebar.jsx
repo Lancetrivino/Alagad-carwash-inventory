@@ -63,6 +63,9 @@ export default function Sidebar() {
             borderRadius: '50%',
             border: '2px solid var(--blue)',
             boxShadow: '0 0 24px rgba(46,141,232,0.3)',
+            background: '#ffffff',
+            padding: 4,
+  
           }}
         />
         <div style={{
