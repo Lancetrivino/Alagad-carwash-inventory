@@ -16,6 +16,37 @@ export async function POST(request) {
   const body = await request.json()
   const { error } = await supabase.from('logbook').insert(body)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-upsert customer record if plate number provided
+  if (body.plate_no) {
+    const visitDate = new Date(body.logged_at).toISOString().split('T')[0]
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('plate_no', body.plate_no)
+      .single()
+
+    if (existing) {
+      await supabase.from('customers').update({
+        vehicle_name: body.vehicle_name,
+        vehicle_size: body.vehicle_size,
+        last_visit: visitDate,
+        total_visits: existing.total_visits + 1,
+        total_spent: existing.total_spent + body.total,
+      }).eq('plate_no', body.plate_no)
+    } else {
+      await supabase.from('customers').insert({
+        plate_no: body.plate_no,
+        vehicle_name: body.vehicle_name,
+        vehicle_size: body.vehicle_size,
+        first_visit: visitDate,
+        last_visit: visitDate,
+        total_visits: 1,
+        total_spent: body.total,
+      })
+    }
+  }
+
   return NextResponse.json({ success: true })
 }
 

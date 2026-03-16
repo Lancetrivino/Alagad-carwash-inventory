@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
   { href: '/logbook', label: 'Logbook', icon: '📋' },
   { href: '/salary', label: 'Salary', icon: '💰' },
+  { href: '/customers', label: 'Customers', icon: '🚗' },
   { href: '/sales', label: 'New Sale', icon: '＋' },
   { href: '/usage', label: 'Use Chemical', icon: '⚗' },
   { href: '/history', label: 'History', icon: '☰' },
@@ -16,6 +18,15 @@ const links = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [lowStockCount, setLowStockCount] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/products').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setLowStockCount(data.filter(p => p.qty <= 2).length)
+      }
+    })
+  }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -43,17 +54,16 @@ export default function Sidebar() {
         gap: 8,
       }}>
         <img
-          src="/alagad-logo-ver-2.jpg"
+          src="/alagad-logo.png"
           alt="Alagad Carwash"
           style={{
-            width: 80,
-            height: 80,
-            objectFit: 'cover',
+            width: 160,
+            height: 70,
+            objectFit: 'contain',
             borderRadius: '50%',
             border: '2px solid var(--blue)',
-            display: 'block',
-            margin: '0 auto',
-            }}
+            boxShadow: '0 0 24px rgba(46,141,232,0.3)',
+          }}
         />
         <div style={{
           fontSize: 10,
@@ -76,10 +86,12 @@ export default function Sidebar() {
       }}>
         {links.map(link => {
           const active = pathname === link.href
+          const isDashboard = link.href === '/dashboard'
           return (
             <Link key={link.href} href={link.href} style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 12,
               padding: '10px 12px',
               borderRadius: 10,
@@ -91,8 +103,24 @@ export default function Sidebar() {
               textDecoration: 'none',
               transition: 'all 0.15s',
             }}>
-              <span style={{ fontSize: 16, width: 20, textAlign: 'center' }}>{link.icon}</span>
-              {link.label}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 16, width: 20, textAlign: 'center' }}>{link.icon}</span>
+                {link.label}
+              </div>
+              {isDashboard && lowStockCount > 0 && (
+                <span style={{
+                  background: '#f87171',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}>
+                  {lowStockCount}
+                </span>
+              )}
             </Link>
           )
         })}
