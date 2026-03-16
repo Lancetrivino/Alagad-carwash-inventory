@@ -49,6 +49,33 @@ export async function POST(request) {
   return NextResponse.json({ success: true })
 }
 
+export async function PATCH(request) {
+  if (!supabase) return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+  const body = await request.json()
+
+  // Mark as paid
+  if (body.markPaid) {
+    const { error } = await supabase
+      .from('logbook')
+      .update({
+        payment_status: 'paid',
+        paid_at: new Date().toISOString(),
+      })
+      .eq('id', body.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // Regular stock adjust (from dashboard)
+  const { id, qty, action, prev_qty } = body
+  const { error: updateError } = await supabase
+    .from('logbook')
+    .update({ qty, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}
+
 export async function DELETE(request) {
   if (!supabase) return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
   const { id } = await request.json()

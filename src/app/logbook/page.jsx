@@ -9,7 +9,7 @@ const VEHICLE_SIZES = [
   { label: 'XSmall (₱160)', value: 'XSmall' },
   { label: 'Small (₱180)', value: 'Small' },
   { label: 'Medium (₱200)', value: 'Medium' },
-  { label: 'Large (₱230)', value: 'Large' },
+  { label: 'Large (₱2300)', value: 'Large' },
   { label: 'X-Large (₱250)', value: 'X-Large' },
   { label: 'XX-Large (₱300)', value: 'XX-Large' },
   { label: 'Motorcycle (₱120)', value: 'Motorcycle' },
@@ -17,7 +17,7 @@ const VEHICLE_SIZES = [
 ]
 
 const PRICES = {
-  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 230, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
+  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 2300, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
   'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200, Motorcycle: 200, 'Motorcycle 400cc': 250 },
@@ -55,7 +55,6 @@ const VEHICLES = {
   'Motorcycle 400cc': ['CB400', 'CB500', 'Duke 390', 'Duke 400', 'Ninja 400', 'Z400', 'Versys 300', 'Royal Enfield'],
 }
 const isMoto = (size) => size === 'Motorcycle' || size === 'Motorcycle 400cc'
-
 const DETAILING_SERVICES = [
   'Glass Detailing', 'Mags Detailing', 'Engine Detailing',
   'Interior Detailing', 'Exterior Detailing', 'Ceramic Coating', 'Trim Black Restoration',
@@ -108,6 +107,7 @@ export default function LogbookPage() {
   const [error, setError] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [searchLog, setSearchLog] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [tab, setTab] = useState('form')
 
   const [vehicleName, setVehicleName] = useState('')
@@ -116,11 +116,10 @@ export default function LogbookPage() {
   const [selectedServices, setSelectedServices] = useState([])
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState('Cash')
+  const [paymentStatus, setPaymentStatus] = useState('paid')
   const [crew, setCrew] = useState([])
   const [lateNight, setLateNight] = useState(false)
   const [rollbar, setRollbar] = useState(false)
-
-  // Split mode: 'assign' | '5050' | 'manual'
   const [splitMode, setSplitMode] = useState('assign')
   const [serviceAssignments, setServiceAssignments] = useState({})
   const [manualSplits, setManualSplits] = useState({})
@@ -132,7 +131,6 @@ export default function LogbookPage() {
     })
   }, [])
 
-  // Reset assignments when crew or services change
   useEffect(() => {
     const assignments = {}
     selectedServices.forEach(s => {
@@ -141,7 +139,6 @@ export default function LogbookPage() {
     setServiceAssignments(assignments)
   }, [selectedServices, crew])
 
-  // Reset manual splits when crew changes
   useEffect(() => {
     if (crew.length === 0) { setManualSplits({}); return }
     const even = Math.floor(100 / crew.length)
@@ -169,6 +166,15 @@ export default function LogbookPage() {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
+    })
+    fetchLogs()
+  }
+
+  async function markAsPaid(id) {
+    await fetch('/api/logbook', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, markPaid: true }),
     })
     fetchLogs()
   }
@@ -214,20 +220,13 @@ export default function LogbookPage() {
       : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
     : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
 
-  // Build crew_assignment object to save
   function buildCrewAssignment() {
     if (crew.length <= 1) return null
-    if (splitMode === '5050') {
-      return { mode: '5050' }
-    }
-    if (splitMode === 'manual') {
-      return { mode: 'manual', splits: manualSplits }
-    }
-    // assign mode
+    if (splitMode === '5050') return { mode: '5050' }
+    if (splitMode === 'manual') return { mode: 'manual', splits: manualSplits }
     return { mode: 'assign', assignments: serviceAssignments }
   }
 
-  // Preview: how much each crew gets from this job
   function getCrewCutPreview() {
     if (crew.length === 0 || total === 0) return []
     if (crew.length === 1) {
@@ -238,25 +237,16 @@ export default function LogbookPage() {
       }, 0)
       return [{ name: crew[0], cut: Math.round(crewCut) }]
     }
-
     if (splitMode === '5050') {
       const perPerson = total / crew.length
-      return crew.map(c => {
-        const cut = perPerson * 0.30
-        return { name: c, cut: Math.round(cut) }
-      })
+      return crew.map(c => ({ name: c, cut: Math.round(perPerson * 0.30) }))
     }
-
     if (splitMode === 'manual') {
       return crew.map(c => {
         const pct = (parseFloat(manualSplits[c]) || 0) / 100
-        const share = total * pct
-        const cut = share * 0.30
-        return { name: c, pct: manualSplits[c], cut: Math.round(cut) }
+        return { name: c, pct: manualSplits[c], cut: Math.round(total * pct * 0.30) }
       })
     }
-
-    // assign mode
     return crew.map(c => {
       let crewCut = 0
       selectedServices.forEach(s => {
@@ -326,6 +316,7 @@ export default function LogbookPage() {
         discount: parseFloat(discount) || 0,
         total,
         payment_method: paymentMethod,
+        payment_status: paymentStatus,
         crew: crew.join(', '),
         crew_assignment: buildCrewAssignment(),
         logged_at: new Date().toISOString(),
@@ -335,8 +326,8 @@ export default function LogbookPage() {
     setSuccess(true)
     setVehicleName(''); setPlateNo(''); setVehicleSize('')
     setSelectedServices([]); setDiscount(0)
-    setPaymentMethod('Cash'); setCrew([])
-    setLateNight(false); setRollbar(false)
+    setPaymentMethod('Cash'); setPaymentStatus('paid')
+    setCrew([]); setLateNight(false); setRollbar(false)
     setSplitMode('assign'); setServiceAssignments({})
     setLoading(false)
     fetchLogs()
@@ -350,12 +341,14 @@ export default function LogbookPage() {
         l.crew?.toLowerCase().includes(searchLog.toLowerCase()) ||
         l.vehicle_name?.toLowerCase().includes(searchLog.toLowerCase())
       : true
-    return matchDate && matchSearch
+    const matchStatus = statusFilter === 'all' ? true : l.payment_status === statusFilter
+    return matchDate && matchSearch && matchStatus
   })
 
   const filteredTotal = filteredLogs.reduce((s, l) => s + l.total, 0)
   const filteredCash = filteredLogs.filter(l => l.payment_method === 'Cash').reduce((s, l) => s + l.total, 0)
   const filteredGcash = filteredLogs.filter(l => l.payment_method === 'GCash').reduce((s, l) => s + l.total, 0)
+  const unpaidLogs = logs.filter(l => l.payment_status === 'unpaid')
   const crewCutPreview = getCrewCutPreview()
 
   return (
@@ -367,6 +360,42 @@ export default function LogbookPage() {
           <div style={S.sub}>Record every car wash service — date & time auto-captured</div>
         </div>
 
+        {/* Unpaid alert banner */}
+        {unpaidLogs.length > 0 && (
+          <div style={{
+            background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
+            borderRadius: 12, padding: '14px 18px',
+            display: 'flex', alignItems: 'flex-start', gap: 12,
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>
+                {unpaidLogs.length} unpaid car{unpaidLogs.length > 1 ? 's' : ''} — ₱{unpaidLogs.reduce((s, l) => s + l.total, 0).toLocaleString()} pending
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {unpaidLogs.map(l => (
+                  <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '4px 10px' }}>
+                    <span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>
+                      {l.vehicle_name} {l.plate_no ? `(${l.plate_no})` : ''} — ₱{l.total.toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => markAsPaid(l.id)}
+                      style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: '#fbbf24', color: '#000', border: 'none', cursor: 'pointer',
+                        fontFamily: "'Barlow', sans-serif",
+                      }}
+                    >
+                      Mark Paid
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
         <div style={{ display: 'flex', gap: 8 }}>
           {['form', 'logs'].map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
@@ -396,7 +425,6 @@ export default function LogbookPage() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-              {/* Vehicle Size + Model */}
               <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Vehicle Size</label>
@@ -428,13 +456,11 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              {/* Plate */}
               <div>
                 <label style={S.label}>Plate No.</label>
                 <input style={S.input} type="text" value={plateNo} onChange={e => setPlateNo(e.target.value.toUpperCase())} placeholder="e.g. ABC 1234" />
               </div>
 
-              {/* Motorcycle banner */}
               {isMoto(vehicleSize) && (
                 <div style={{ background: 'rgba(46,141,232,0.08)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, marginBottom: 4 }}>
@@ -446,7 +472,6 @@ export default function LogbookPage() {
                 </div>
               )}
 
-              {/* Services */}
               <div>
                 <label style={S.label}>
                   {isMoto(vehicleSize) ? 'Add-on Services (optional)' : 'Services'}
@@ -513,7 +538,6 @@ export default function LogbookPage() {
                 )}
               </div>
 
-              {/* Extra Fees */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Toggle active={lateNight} onClick={() => setLateNight(p => !p)}
                   color="#fbbf24" borderColor="rgba(251,191,36,0.4)" bgColor="rgba(251,191,36,0.08)"
@@ -539,7 +563,34 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              {/* Crew Selection */}
+              {/* Payment Status */}
+              <div>
+                <label style={S.label}>Payment Status</label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {[
+                    { value: 'paid', label: '✓ Paid', color: '#4ade80', border: 'rgba(34,197,94,0.4)', bg: 'rgba(34,197,94,0.08)' },
+                    { value: 'unpaid', label: '⏳ Not Paid Yet', color: '#fbbf24', border: 'rgba(251,191,36,0.4)', bg: 'rgba(251,191,36,0.08)' },
+                  ].map(opt => (
+                    <div key={opt.value} onClick={() => setPaymentStatus(opt.value)} style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                      border: paymentStatus === opt.value ? `1px solid ${opt.border}` : '1px solid var(--border)',
+                      background: paymentStatus === opt.value ? opt.bg : 'var(--navy-mid)',
+                      display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
+                    }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                        border: paymentStatus === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
+                        background: paymentStatus === opt.value ? opt.color : 'transparent',
+                      }} />
+                      <span style={{ fontSize: 13, fontWeight: paymentStatus === opt.value ? 600 : 400, color: paymentStatus === opt.value ? opt.color : 'var(--text-secondary)' }}>
+                        {opt.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Crew */}
               <div>
                 <label style={S.label}>
                   Crew
@@ -549,10 +600,7 @@ export default function LogbookPage() {
                     </span>
                   )}
                 </label>
-                <div style={{
-                  background: 'var(--navy-mid)', border: '1px solid var(--border)',
-                  borderRadius: 10, padding: 10, display: 'flex', flexWrap: 'wrap', gap: 8,
-                }}>
+                <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {crewList.map(c => {
                     const selected = crew.includes(c.name)
                     return (
@@ -585,14 +633,12 @@ export default function LogbookPage() {
                 )}
               </div>
 
-              {/* Split Mode — only show if 2+ crew selected */}
+              {/* Split Mode */}
               {crew.length >= 2 && (
                 <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
                     Salary Split Mode
                   </div>
-
-                  {/* Mode selector */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     {[
                       { key: 'assign', label: 'By Service', desc: 'Assign each service to a crew' },
@@ -613,16 +659,15 @@ export default function LogbookPage() {
                     ))}
                   </div>
 
-                  {/* Assign mode */}
-                  {splitMode === 'assign' && selectedServices.length > 0 && (
+                  {splitMode === 'assign' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {selectedServices.map(s => (
+                      {selectedServices.length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select services above to assign them to crew</div>
+                      ) : selectedServices.map(s => (
                         <div key={s} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{s}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                              ₱{(PRICES[s]?.[vehicleSize] || 0).toLocaleString()}
-                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>₱{(PRICES[s]?.[vehicleSize] || 0).toLocaleString()}</div>
                           </div>
                           <select
                             value={serviceAssignments[s] || ''}
@@ -634,17 +679,9 @@ export default function LogbookPage() {
                           </select>
                         </div>
                       ))}
-                      {selectedServices.length === 0 && (
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select services first to assign them</div>
-                      )}
                     </div>
                   )}
 
-                  {splitMode === 'assign' && selectedServices.length === 0 && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select services above to assign them to crew</div>
-                  )}
-
-                  {/* 50/50 mode */}
                   {splitMode === '5050' && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {crew.map((c, i) => (
@@ -655,16 +692,13 @@ export default function LogbookPage() {
                         }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{c}</div>
                           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-glow)' }}>
-                            {i === crew.length - 1
-                              ? 100 - Math.floor(100 / crew.length) * (crew.length - 1)
-                              : Math.floor(100 / crew.length)}%
+                            {i === crew.length - 1 ? 100 - Math.floor(100 / crew.length) * (crew.length - 1) : Math.floor(100 / crew.length)}%
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Manual mode */}
                   {splitMode === 'manual' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {crew.map(c => (
@@ -689,14 +723,9 @@ export default function LogbookPage() {
                           </div>
                         </div>
                       ))}
-                      <div style={{
-                        display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
-                        fontSize: 12, paddingTop: 8, borderTop: '1px solid var(--border)',
-                      }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, fontSize: 12, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Total:</span>
-                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.1 ? '#4ade80' : '#f87171' }}>
-                          {manualTotal}%
-                        </span>
+                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.1 ? '#4ade80' : '#f87171' }}>{manualTotal}%</span>
                         {Math.abs(manualTotal - 100) > 0.1 && (
                           <span style={{ color: '#f87171', fontSize: 11 }}>must equal 100%</span>
                         )}
@@ -704,12 +733,9 @@ export default function LogbookPage() {
                     </div>
                   )}
 
-                  {/* Crew cut preview */}
                   {crewCutPreview.length > 0 && total > 0 && (
                     <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                        Estimated Crew Pay
-                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Estimated Crew Pay</div>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         {crewCutPreview.map(c => (
                           <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -770,13 +796,32 @@ export default function LogbookPage() {
               </div>
               <div>
                 <label style={{ ...S.label, marginBottom: 6 }}>Search</label>
-                <input type="text" placeholder="Plate, crew, vehicle..." value={searchLog} onChange={e => setSearchLog(e.target.value)} style={{ ...S.input, width: 220 }} />
+                <input type="text" placeholder="Plate, crew, vehicle..." value={searchLog} onChange={e => setSearchLog(e.target.value)} style={{ ...S.input, width: 200 }} />
               </div>
-              {(filterDate || searchLog) && (
-                <button onClick={() => { setFilterDate(''); setSearchLog('') }} style={{
+              <div>
+                <label style={{ ...S.label, marginBottom: 6 }}>Status</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'paid', label: 'Paid' },
+                    { value: 'unpaid', label: 'Unpaid' },
+                  ].map(f => (
+                    <button key={f.value} onClick={() => setStatusFilter(f.value)} style={{
+                      padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+                      background: statusFilter === f.value ? 'var(--blue)' : 'var(--navy-mid)',
+                      color: statusFilter === f.value ? '#fff' : 'var(--text-secondary)',
+                      border: statusFilter === f.value ? '1px solid var(--blue)' : '1px solid var(--border)',
+                    }}>{f.label}</button>
+                  ))}
+                </div>
+              </div>
+              {(filterDate || searchLog || statusFilter !== 'all') && (
+                <button onClick={() => { setFilterDate(''); setSearchLog(''); setStatusFilter('all') }} style={{
                   padding: '10px 14px', borderRadius: 8, fontSize: 12,
                   background: 'transparent', border: '1px solid var(--border)',
                   color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                  marginTop: 20,
                 }}>Clear all</button>
               )}
             </div>
@@ -802,12 +847,21 @@ export default function LogbookPage() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>GCash</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--blue-glow)' }}>₱{filteredGcash.toLocaleString()}</div>
               </div>
+              {unpaidLogs.length > 0 && (
+                <>
+                  <div style={{ width: 1, background: 'var(--border)' }} />
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Unpaid</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#fbbf24' }}>₱{unpaidLogs.reduce((s, l) => s + l.total, 0).toLocaleString()}</div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Table */}
             <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1020 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1100 }}>
                   <thead>
                     <tr>
                       <th style={S.th}>Date & Time</th>
@@ -819,6 +873,7 @@ export default function LogbookPage() {
                       <th style={{ ...S.th, textAlign: 'right' }}>Discount</th>
                       <th style={{ ...S.th, textAlign: 'right' }}>Total</th>
                       <th style={{ ...S.th, textAlign: 'center' }}>Payment</th>
+                      <th style={{ ...S.th, textAlign: 'center' }}>Status</th>
                       <th style={S.th}>Crew</th>
                       <th style={{ ...S.th, textAlign: 'center' }}>Action</th>
                     </tr>
@@ -826,86 +881,111 @@ export default function LogbookPage() {
                   <tbody>
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={11} style={{ ...S.td, textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                        <td colSpan={12} style={{ ...S.td, textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
                           No entries found.
                         </td>
                       </tr>
-                    ) : filteredLogs.map(l => (
-                      <tr key={l.id}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <td style={{ ...S.td, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {new Date(l.logged_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
-                        <td style={{ ...S.td, color: 'var(--blue-glow)', fontWeight: 600 }}>{l.plate_no || '—'}</td>
-                        <td style={S.td}>
-                          <span style={{
-                            background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)',
-                            color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)',
-                            padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          }}>
-                            {l.vehicle_size}
-                          </span>
-                        </td>
-                        <td style={{ ...S.td, maxWidth: 200 }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {l.service.split(', ').map((s, i) => (
-                              <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{l.amount?.toLocaleString()}</td>
-                        <td style={{ ...S.td, textAlign: 'right', color: '#f87171' }}>
-                          {l.discount > 0 ? `- ₱${l.discount?.toLocaleString()}` : '—'}
-                        </td>
-                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#4ade80' }}>₱{l.total?.toLocaleString()}</td>
-                        <td style={{ ...S.td, textAlign: 'center' }}>
-                          <span style={{
-                            background: l.payment_method === 'GCash' ? 'rgba(34,197,94,0.15)' : 'rgba(250,191,36,0.15)',
-                            color: l.payment_method === 'GCash' ? '#4ade80' : '#fbbf24',
-                            padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          }}>
-                            {l.payment_method}
-                          </span>
-                        </td>
-                        <td style={{ ...S.td }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {l.crew.split(', ').map((c, i) => (
-                              <span key={i} style={{
-                                background: 'rgba(46,141,232,0.1)', color: 'var(--blue-glow)',
-                                border: '1px solid rgba(46,141,232,0.2)',
-                                borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 600,
-                              }}>
-                                {c}
-                              </span>
-                            ))}
-                            {l.crew_assignment && (
-                              <span style={{
-                                background: 'rgba(168,85,247,0.1)', color: '#a855f7',
-                                border: '1px solid rgba(168,85,247,0.2)',
-                                borderRadius: 4, padding: '1px 6px', fontSize: 10,
-                              }}>
-                                {l.crew_assignment.mode === '5050' ? 'even' : l.crew_assignment.mode === 'manual' ? 'manual' : 'assigned'}
+                    ) : filteredLogs.map(l => {
+                      const isUnpaid = l.payment_status === 'unpaid'
+                      return (
+                        <tr key={l.id}
+                          style={{ background: isUnpaid ? 'rgba(251,191,36,0.04)' : 'transparent' }}
+                          onMouseEnter={e => e.currentTarget.style.background = isUnpaid ? 'rgba(251,191,36,0.08)' : 'var(--surface-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.background = isUnpaid ? 'rgba(251,191,36,0.04)' : 'transparent'}
+                        >
+                          <td style={{ ...S.td, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                            {new Date(l.logged_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
+                          <td style={{ ...S.td, color: 'var(--blue-glow)', fontWeight: 600 }}>{l.plate_no || '—'}</td>
+                          <td style={S.td}>
+                            <span style={{
+                              background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)',
+                              color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)',
+                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            }}>
+                              {l.vehicle_size}
+                            </span>
+                          </td>
+                          <td style={{ ...S.td, maxWidth: 180 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {l.service.split(', ').map((s, i) => (
+                                <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{l.amount?.toLocaleString()}</td>
+                          <td style={{ ...S.td, textAlign: 'right', color: '#f87171' }}>
+                            {l.discount > 0 ? `- ₱${l.discount?.toLocaleString()}` : '—'}
+                          </td>
+                          <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: isUnpaid ? '#fbbf24' : '#4ade80' }}>
+                            ₱{l.total?.toLocaleString()}
+                          </td>
+                          <td style={{ ...S.td, textAlign: 'center' }}>
+                            <span style={{
+                              background: l.payment_method === 'GCash' ? 'rgba(34,197,94,0.15)' : 'rgba(250,191,36,0.15)',
+                              color: l.payment_method === 'GCash' ? '#4ade80' : '#fbbf24',
+                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            }}>
+                              {l.payment_method}
+                            </span>
+                          </td>
+                          <td style={{ ...S.td, textAlign: 'center' }}>
+                            {isUnpaid ? (
+                              <button
+                                onClick={() => markAsPaid(l.id)}
+                                style={{
+                                  padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                  cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                                  background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
+                                  border: '1px solid rgba(251,191,36,0.3)', whiteSpace: 'nowrap',
+                                }}
+                              >
+                                ⏳ Mark Paid
+                              </button>
+                            ) : (
+                              <span style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                                ✓ Paid
                               </span>
                             )}
-                          </div>
-                        </td>
-                        <td style={{ ...S.td, textAlign: 'center' }}>
-                          <button onClick={() => deleteLog(l.id)} style={{
-                            padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                            cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
-                            background: 'rgba(248,113,113,0.1)', color: '#f87171',
-                            border: '1px solid rgba(248,113,113,0.3)', transition: 'all 0.15s',
-                          }}>
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td style={S.td}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {l.crew.split(', ').map((c, i) => (
+                                <span key={i} style={{
+                                  background: 'rgba(46,141,232,0.1)', color: 'var(--blue-glow)',
+                                  border: '1px solid rgba(46,141,232,0.2)',
+                                  borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 600,
+                                }}>
+                                  {c}
+                                </span>
+                              ))}
+                              {l.crew_assignment && (
+                                <span style={{
+                                  background: 'rgba(168,85,247,0.1)', color: '#a855f7',
+                                  border: '1px solid rgba(168,85,247,0.2)',
+                                  borderRadius: 4, padding: '1px 6px', fontSize: 10,
+                                }}>
+                                  {l.crew_assignment.mode === '5050' ? 'even' : l.crew_assignment.mode === 'manual' ? 'manual' : 'assigned'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ ...S.td, textAlign: 'center' }}>
+                            <button onClick={() => deleteLog(l.id)} style={{
+                              padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                              cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                              background: 'rgba(248,113,113,0.1)', color: '#f87171',
+                              border: '1px solid rgba(248,113,113,0.3)', transition: 'all 0.15s',
+                            }}>
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
