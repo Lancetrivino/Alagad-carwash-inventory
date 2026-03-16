@@ -17,7 +17,6 @@ export async function POST(request) {
   const { error } = await supabase.from('logbook').insert(body)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Auto-upsert customer record if plate number provided
   if (body.plate_no) {
     const visitDate = new Date(body.logged_at).toISOString().split('T')[0]
     const { data: existing } = await supabase
