@@ -6,18 +6,18 @@ import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 
 const VEHICLE_SIZES = [
-  { label: 'XSmall (₱140)', value: 'XSmall' },
-  { label: 'Small (₱160)', value: 'Small' },
-  { label: 'Medium (₱180)', value: 'Medium' },
-  { label: 'Large (₱200)', value: 'Large' },
-  { label: 'X-Large (₱220)', value: 'X-Large' },
-  { label: 'XX-Large (₱250)', value: 'XX-Large' },
+  { label: 'XSmall (₱160)', value: 'XSmall' },
+  { label: 'Small (₱180)', value: 'Small' },
+  { label: 'Medium (₱200)', value: 'Medium' },
+  { label: 'Large (₱230)', value: 'Large' },
+  { label: 'X-Large (₱250)', value: 'X-Large' },
+  { label: 'XX-Large (₱300)', value: 'XX-Large' },
   { label: 'Motorcycle (₱120)', value: 'Motorcycle' },
   { label: 'Motorcycle 400cc up (₱180)', value: 'Motorcycle 400cc' },
 ]
 
 const PRICES = {
-  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 140, Small: 160, Medium: 180, Large: 200, 'X-Large': 220, 'XX-Large': 250 },
+  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 230, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
   'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200, Motorcycle: 200, 'Motorcycle 400cc': 250 },
