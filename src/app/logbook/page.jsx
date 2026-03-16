@@ -12,13 +12,15 @@ const VEHICLE_SIZES = [
   { label: 'Large (₱200)', value: 'Large' },
   { label: 'X-Large (₱220)', value: 'X-Large' },
   { label: 'XX-Large (₱250)', value: 'XX-Large' },
+  { label: 'Motorcycle (₱120)', value: 'Motorcycle' },
+  { label: 'Motorcycle 400cc up (₱180)', value: 'Motorcycle 400cc' },
 ]
 
 const PRICES = {
   'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 140, Small: 160, Medium: 180, Large: 200, 'X-Large': 220, 'XX-Large': 250 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
-  'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200 },
+  'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200, Motorcycle: 200, 'Motorcycle 400cc': 250 },
   'Spray Wax': { XSmall: 300, Small: 400, Medium: 500, Large: 600, 'X-Large': 700, 'XX-Large': 800 },
   'Machine Wax': { XSmall: 500, Small: 600, Medium: 700, Large: 800, 'X-Large': 900, 'XX-Large': 1000 },
   'Acid Rain Removal': { XSmall: 500, Small: 600, Medium: 700, Large: 800, 'X-Large': 900, 'XX-Large': 1000 },
@@ -33,6 +35,28 @@ const PRICES = {
   'Interior Detailing': { XSmall: 5000, Small: 5500, Medium: 6000, Large: 6500, 'X-Large': 7000, 'XX-Large': 7500 },
   'Exterior Detailing': { XSmall: 5000, Small: 5500, Medium: 6000, Large: 6500, 'X-Large': 7000, 'XX-Large': 7500 },
   'Ceramic Coating': { XSmall: 14000, Small: 16000, Medium: 18000, Large: 20000, 'X-Large': 22000, 'XX-Large': 24000 },
+  'Hand Wax (Motorcycle)': { Motorcycle: 200, 'Motorcycle 400cc': 250 },
+}
+
+// Motorcycle-only services
+const MOTO_SERVICES = ['Interior Dressing', 'Hand Wax (Motorcycle)']
+
+// Special combo pricing for motorcycles
+const MOTO_COMBOS = {
+  Motorcycle: {
+    combo: ['Interior Dressing', 'Hand Wax (Motorcycle)'],
+    comboPrice: 250,
+  },
+  'Motorcycle 400cc': {
+    combo: ['Interior Dressing', 'Hand Wax (Motorcycle)'],
+    comboPrice: 300,
+  },
+}
+
+// Base wash prices for motorcycles
+const MOTO_WASH = {
+  Motorcycle: 120,
+  'Motorcycle 400cc': 180,
 }
 
 const VEHICLES = {
@@ -42,7 +66,11 @@ const VEHICLES = {
   Large: ['SUV', 'Fortuner', 'Montero', 'Innova', 'Crosswind', 'Wrangler', 'MUX', 'MG RX5', 'Everest Old', 'Cross', 'CRV'],
   'X-Large': ['Hilux', 'Ranger', 'PJ Cruiser', 'Patrol', 'Everest New', 'Pajero', 'Navarra', 'Strada', 'Pick Up', 'Terra'],
   'XX-Large': ['Van', 'Hi Ace', 'Starex', 'L-300 FB', 'Travis', 'Big Foot', 'Raptor'],
+  Motorcycle: ['Mio', 'Click', 'Beat', 'Aerox', 'NMAX', 'PCX', 'Raider', 'Barako', 'TMX'],
+  'Motorcycle 400cc': ['CB400', 'CB500', 'Duke 390', 'Duke 400', 'Ninja 400', 'Z400', 'Versys 300', 'Royal Enfield'],
 }
+
+const isMoto = (size) => size === 'Motorcycle' || size === 'Motorcycle 400cc'
 
 const S = {
   page: { display: 'flex', minHeight: '100vh', fontFamily: "'Barlow', sans-serif", background: 'var(--navy)' },
@@ -138,9 +166,37 @@ export default function LogbookPage() {
     )
   }
 
-  const servicesAmount = vehicleSize
-    ? selectedServices.reduce((sum, s) => sum + (PRICES[s]?.[vehicleSize] || 0), 0)
-    : 0
+  // Smart amount computation with motorcycle combo pricing
+  function computeAmount() {
+    if (!vehicleSize) return 0
+
+    if (isMoto(vehicleSize)) {
+      const washPrice = MOTO_WASH[vehicleSize]
+      const hasInterior = selectedServices.includes('Interior Dressing')
+      const hasWax = selectedServices.includes('Hand Wax (Motorcycle)')
+      const combo = MOTO_COMBOS[vehicleSize]
+
+      // Both selected = combo price
+      if (hasInterior && hasWax) {
+        return washPrice + combo.comboPrice
+      }
+      // Only interior
+      if (hasInterior) {
+        return washPrice + (PRICES['Interior Dressing']?.[vehicleSize] || 0)
+      }
+      // Only wax
+      if (hasWax) {
+        return washPrice + (PRICES['Hand Wax (Motorcycle)']?.[vehicleSize] || 0)
+      }
+      // Wash only
+      return washPrice
+    }
+
+    // Regular vehicle
+    return selectedServices.reduce((sum, s) => sum + (PRICES[s]?.[vehicleSize] || 0), 0)
+  }
+
+  const servicesAmount = computeAmount()
   const lateNightFee = lateNight ? 30 : 0
   const rollbarFee = rollbar ? 20 : 0
   const amount = servicesAmount + lateNightFee + rollbarFee
@@ -148,10 +204,29 @@ export default function LogbookPage() {
 
   const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
 
+  // Get available services based on vehicle type
+  const availableServices = vehicleSize
+    ? isMoto(vehicleSize)
+      ? MOTO_SERVICES
+      : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
+    : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
+
   async function handleSubmit(e) {
     e.preventDefault()
-    if (selectedServices.length === 0) { setError('Please select at least one service'); return }
+
+    // For motorcycles, services are optional (wash only is valid)
+    if (!isMoto(vehicleSize) && selectedServices.length === 0) {
+      setError('Please select at least one service')
+      return
+    }
+
     setLoading(true); setError('')
+
+    const serviceLabel = isMoto(vehicleSize)
+      ? selectedServices.length === 0
+        ? 'Motorcycle Wash'
+        : selectedServices.join(', ')
+      : selectedServices.join(', ')
 
     await fetch('/api/logbook', {
       method: 'POST',
@@ -160,7 +235,7 @@ export default function LogbookPage() {
         vehicle_name: vehicleName,
         plate_no: plateNo,
         vehicle_size: vehicleSize,
-        service: selectedServices.join(', '),
+        service: serviceLabel,
         amount,
         discount: parseFloat(discount) || 0,
         total,
@@ -185,6 +260,36 @@ export default function LogbookPage() {
     : logs
 
   const filteredTotal = filteredLogs.reduce((s, l) => s + l.total, 0)
+
+  // Bill breakdown for display
+  function getBillLines() {
+    if (!vehicleSize) return []
+    const lines = []
+
+    if (isMoto(vehicleSize)) {
+      lines.push({ label: `Motorcycle Wash (${vehicleSize})`, amount: MOTO_WASH[vehicleSize], color: 'var(--text-secondary)' })
+      const hasInterior = selectedServices.includes('Interior Dressing')
+      const hasWax = selectedServices.includes('Hand Wax (Motorcycle)')
+      const combo = MOTO_COMBOS[vehicleSize]
+
+      if (hasInterior && hasWax) {
+        lines.push({ label: 'Interior Dressing + Hand Wax (Combo)', amount: combo.comboPrice, color: '#4ade80' })
+      } else {
+        if (hasInterior) lines.push({ label: 'Interior Dressing', amount: PRICES['Interior Dressing']?.[vehicleSize], color: 'var(--text-secondary)' })
+        if (hasWax) lines.push({ label: 'Hand Wax', amount: PRICES['Hand Wax (Motorcycle)']?.[vehicleSize], color: 'var(--text-secondary)' })
+      }
+    } else {
+      selectedServices.forEach(s => {
+        lines.push({ label: s, amount: PRICES[s]?.[vehicleSize] || 0, color: 'var(--text-secondary)' })
+      })
+    }
+
+    if (lateNight) lines.push({ label: 'Beyond 6:00 PM', amount: 30, color: '#fbbf24', prefix: '+ ' })
+    if (rollbar) lines.push({ label: 'W/ Rollbar / Bullbar', amount: 20, color: '#a855f7', prefix: '+ ' })
+    if (discount > 0) lines.push({ label: 'Discount', amount: parseFloat(discount), color: '#f87171', prefix: '- ' })
+
+    return lines
+  }
 
   return (
     <div style={S.page}>
@@ -230,7 +335,16 @@ export default function LogbookPage() {
                   <label style={S.label}>Vehicle Size</label>
                   <select style={S.select} value={vehicleSize} onChange={e => { setVehicleSize(e.target.value); setVehicleName(''); setSelectedServices([]) }} required>
                     <option value="">Select size</option>
-                    {VEHICLE_SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    <optgroup label="— Regular Vehicles —">
+                      {VEHICLE_SIZES.filter(s => !isMoto(s.value)).map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="— Motorcycles —">
+                      {VEHICLE_SIZES.filter(s => isMoto(s.value)).map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -252,10 +366,22 @@ export default function LogbookPage() {
                 <input style={S.input} type="text" value={plateNo} onChange={e => setPlateNo(e.target.value.toUpperCase())} placeholder="e.g. ABC 1234" />
               </div>
 
-              {/* Services Checkbox Grid */}
+              {/* Motorcycle wash info banner */}
+              {isMoto(vehicleSize) && (
+                <div style={{ background: 'rgba(46,141,232,0.08)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 10, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, marginBottom: 6 }}>
+                    🏍 Motorcycle Base Wash — ₱{MOTO_WASH[vehicleSize]}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Add-ons below are optional. Combo discount applied when both Interior Dressing + Hand Wax are selected.
+                  </div>
+                </div>
+              )}
+
+              {/* Services */}
               <div>
                 <label style={S.label}>
-                  Services
+                  {isMoto(vehicleSize) ? 'Add-on Services (optional)' : 'Services'}
                   {selectedServices.length > 0 && (
                     <span style={{ marginLeft: 8, background: 'var(--blue)', color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
                       {selectedServices.length} selected
@@ -263,14 +389,21 @@ export default function LogbookPage() {
                   )}
                 </label>
                 <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
+                  display: 'grid', gridTemplateColumns: isMoto(vehicleSize) ? '1fr' : 'repeat(2, 1fr)', gap: 8,
                   background: 'var(--navy-mid)', borderRadius: 10,
                   border: '1px solid var(--border)', padding: 12,
-                  maxHeight: 280, overflowY: 'auto',
+                  maxHeight: isMoto(vehicleSize) ? 'auto' : 280, overflowY: 'auto',
                 }}>
-                  {Object.keys(PRICES).map(serviceName => {
+                  {availableServices.map(serviceName => {
                     const checked = selectedServices.includes(serviceName)
                     const price = vehicleSize ? PRICES[serviceName]?.[vehicleSize] : null
+
+                    // Check if this service is part of a combo
+                    const isInCombo = isMoto(vehicleSize) && MOTO_COMBOS[vehicleSize]?.combo.includes(serviceName)
+                    const bothSelected = isMoto(vehicleSize) &&
+                      selectedServices.includes('Interior Dressing') &&
+                      selectedServices.includes('Hand Wax (Motorcycle)')
+
                     return (
                       <div
                         key={serviceName}
@@ -292,22 +425,37 @@ export default function LogbookPage() {
                           }}>
                             {checked && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
                           </div>
-                          <span style={{ fontSize: 12, color: checked ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: checked ? 600 : 400 }}>
-                            {serviceName}
-                          </span>
+                          <div>
+                            <span style={{ fontSize: 12, color: checked ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: checked ? 600 : 400 }}>
+                              {serviceName}
+                            </span>
+                            {isInCombo && bothSelected && (
+                              <span style={{ marginLeft: 6, fontSize: 10, color: '#4ade80', fontWeight: 600 }}>combo</span>
+                            )}
+                          </div>
                         </div>
-                        {price && (
-                          <span style={{ fontSize: 11, color: 'var(--blue-glow)', fontWeight: 600, flexShrink: 0 }}>
-                            ₱{price.toLocaleString()}
-                          </span>
-                        )}
+                        <div style={{ textAlign: 'right' }}>
+                          {price && (
+                            <span style={{ fontSize: 11, color: isInCombo && bothSelected ? '#4ade80' : 'var(--blue-glow)', fontWeight: 600, flexShrink: 0, textDecoration: isInCombo && bothSelected ? 'line-through' : 'none', opacity: isInCombo && bothSelected ? 0.6 : 1 }}>
+                              ₱{price.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
                 </div>
+
+                {/* Combo hint for motorcycles */}
+                {isMoto(vehicleSize) && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    💡 Select both Interior Dressing + Hand Wax to get combo price of ₱{MOTO_COMBOS[vehicleSize]?.comboPrice}
+                  </div>
+                )}
+
                 {!vehicleSize && (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                    Select vehicle size to see prices
+                    Select vehicle size to see services
                   </div>
                 )}
               </div>
@@ -323,15 +471,17 @@ export default function LogbookPage() {
                   label="Beyond 6:00 PM"
                   extra="(+₱30)"
                 />
-                <Toggle
-                  active={rollbar}
-                  onClick={() => setRollbar(p => !p)}
-                  color="#a855f7"
-                  borderColor="rgba(168,85,247,0.4)"
-                  bgColor="rgba(168,85,247,0.08)"
-                  label="W/ Rollbar / Bullbar"
-                  extra="(+₱20)"
-                />
+                {!isMoto(vehicleSize) && (
+                  <Toggle
+                    active={rollbar}
+                    onClick={() => setRollbar(p => !p)}
+                    color="#a855f7"
+                    borderColor="rgba(168,85,247,0.4)"
+                    bgColor="rgba(168,85,247,0.08)"
+                    label="W/ Rollbar / Bullbar"
+                    extra="(+₱20)"
+                  />
+                )}
               </div>
 
               <div style={S.grid2}>
@@ -348,7 +498,6 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              {/* Crew Dropdown */}
               <div>
                 <label style={S.label}>Crew</label>
                 <select style={S.select} value={crew} onChange={e => setCrew(e.target.value)} required>
@@ -362,31 +511,16 @@ export default function LogbookPage() {
               {/* Bill Breakdown */}
               <div style={{ background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Bill Breakdown</div>
-                {selectedServices.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>No services selected</div>
+                {!vehicleSize ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select vehicle size to see breakdown</div>
                 ) : (
                   <>
-                    {selectedServices.map(s => (
-                      <div key={s} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                        <span>{s}</span>
-                        <span>₱{(vehicleSize ? PRICES[s]?.[vehicleSize] : 0)?.toLocaleString() || 0}</span>
+                    {getBillLines().map((line, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: line.color, marginBottom: 6 }}>
+                        <span>{line.label}</span>
+                        <span>{line.prefix || ''} ₱{line.amount?.toLocaleString()}</span>
                       </div>
                     ))}
-                    {lateNight && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#fbbf24', marginBottom: 6 }}>
-                        <span>Beyond 6:00 PM</span><span>+ ₱30</span>
-                      </div>
-                    )}
-                    {rollbar && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#a855f7', marginBottom: 6 }}>
-                        <span>W/ Rollbar / Bullbar</span><span>+ ₱20</span>
-                      </div>
-                    )}
-                    {discount > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#f87171', marginBottom: 6 }}>
-                        <span>Discount</span><span>- ₱{(parseFloat(discount) || 0).toLocaleString()}</span>
-                      </div>
-                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--blue-glow)', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
                       <span>Total</span><span>₱{total.toLocaleString()}</span>
                     </div>
@@ -476,7 +610,11 @@ export default function LogbookPage() {
                         <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
                         <td style={{ ...S.td, color: 'var(--text-secondary)' }}>{l.plate_no || '—'}</td>
                         <td style={S.td}>
-                          <span style={{ background: 'rgba(46,141,232,0.15)', color: 'var(--blue-glow)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                          <span style={{
+                            background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)',
+                            color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)',
+                            padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600
+                          }}>
                             {l.vehicle_size}
                           </span>
                         </td>
