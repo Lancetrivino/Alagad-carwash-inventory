@@ -9,7 +9,7 @@ const VEHICLE_SIZES = [
   { label: 'XSmall (₱160)', value: 'XSmall' },
   { label: 'Small (₱180)', value: 'Small' },
   { label: 'Medium (₱200)', value: 'Medium' },
-  { label: 'Large (₱2300)', value: 'Large' },
+  { label: 'Large (₱230)', value: 'Large' },
   { label: 'X-Large (₱250)', value: 'X-Large' },
   { label: 'XX-Large (₱300)', value: 'XX-Large' },
   { label: 'Motorcycle (₱120)', value: 'Motorcycle' },
@@ -17,7 +17,7 @@ const VEHICLE_SIZES = [
 ]
 
 const PRICES = {
-  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 2300, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
+  'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 230, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
   'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200, Motorcycle: 200, 'Motorcycle 400cc': 250 },
