@@ -217,10 +217,9 @@ export default function LogbookPage() {
   const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
   const availableServices = vehicleSize
     ? isMoto(vehicleSize)
-      ? MOTO_SERVICES
-      : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
-    : Object.keys(PRICES).filter(s => !MOTO_SERVICES.includes(s))
-
+    ? MOTO_SERVICES
+    : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)')
+    : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)')
   function buildCrewAssignment() {
     if (crew.length <= 1) return null
     if (splitMode === '5050') return { mode: '5050' }
