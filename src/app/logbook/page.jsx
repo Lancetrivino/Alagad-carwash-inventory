@@ -112,6 +112,7 @@ export default function LogbookPage() {
 
   const [vehicleName, setVehicleName] = useState('')
   const [plateNo, setPlateNo] = useState('')
+  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0])
   const [vehicleSize, setVehicleSize] = useState('')
   const [selectedServices, setSelectedServices] = useState([])
   const [discount, setDiscount] = useState(0)
@@ -304,6 +305,11 @@ export default function LogbookPage() {
       ? selectedServices.length === 0 ? 'Motorcycle Wash' : selectedServices.join(', ')
       : selectedServices.join(', ')
 
+    // Use selected date + current time
+    const now = new Date()
+    const timeStr = now.toTimeString().split(' ')[0]
+    const loggedAt = new Date(`${entryDate}T${timeStr}`).toISOString()
+
     await fetch('/api/logbook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -319,7 +325,7 @@ export default function LogbookPage() {
         payment_status: paymentStatus,
         crew: crew.join(', '),
         crew_assignment: buildCrewAssignment(),
-        logged_at: new Date().toISOString(),
+        logged_at: loggedAt,
       }),
     })
 
@@ -329,6 +335,7 @@ export default function LogbookPage() {
     setPaymentMethod('Cash'); setPaymentStatus('paid')
     setCrew([]); setLateNight(false); setRollbar(false)
     setSplitMode('assign'); setServiceAssignments({})
+    setEntryDate(new Date().toISOString().split('T')[0])
     setLoading(false)
     fetchLogs()
     setTimeout(() => setSuccess(false), 3000)
@@ -357,7 +364,7 @@ export default function LogbookPage() {
       <main style={S.main}>
         <div>
           <div style={S.heading}>Vehicle Logbook</div>
-          <div style={S.sub}>Record every car wash service — date & time auto-captured</div>
+          <div style={S.sub}>Record every car wash service — time auto-captured</div>
         </div>
 
         {/* Unpaid alert banner */}
@@ -425,6 +432,7 @@ export default function LogbookPage() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
+              {/* Vehicle Size + Model */}
               <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Vehicle Size</label>
@@ -456,11 +464,29 @@ export default function LogbookPage() {
                 </div>
               </div>
 
-              <div>
-                <label style={S.label}>Plate No.</label>
-                <input style={S.input} type="text" value={plateNo} onChange={e => setPlateNo(e.target.value.toUpperCase())} placeholder="e.g. ABC 1234" />
+              {/* Plate + Date */}
+              <div style={S.grid2}>
+                <div>
+                  <label style={S.label}>Plate No.</label>
+                  <input
+                    style={S.input} type="text" value={plateNo}
+                    onChange={e => setPlateNo(e.target.value.toUpperCase())}
+                    placeholder="e.g. ABC 1234"
+                  />
+                </div>
+                <div>
+                  <label style={S.label}>Date</label>
+                  <input
+                    style={S.input} type="date" value={entryDate}
+                    onChange={e => setEntryDate(e.target.value)} required
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Time is captured automatically when you save
+                  </div>
+                </div>
               </div>
 
+              {/* Motorcycle banner */}
               {isMoto(vehicleSize) && (
                 <div style={{ background: 'rgba(46,141,232,0.08)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, marginBottom: 4 }}>
@@ -472,6 +498,7 @@ export default function LogbookPage() {
                 </div>
               )}
 
+              {/* Services */}
               <div>
                 <label style={S.label}>
                   {isMoto(vehicleSize) ? 'Add-on Services (optional)' : 'Services'}
@@ -538,6 +565,7 @@ export default function LogbookPage() {
                 )}
               </div>
 
+              {/* Extra Fees */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Toggle active={lateNight} onClick={() => setLateNight(p => !p)}
                   color="#fbbf24" borderColor="rgba(251,191,36,0.4)" bgColor="rgba(251,191,36,0.08)"
