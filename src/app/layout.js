@@ -2,7 +2,7 @@ import './globals.css'
 
 export const metadata = {
   title: 'Alagad Carwash — Inventory',
-  description: 'Chemical stock management',
+  description: 'Alagad Carwash & Auto Detailing Inventory System',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -22,7 +22,13 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-gray-50 min-h-screen">
+      <head>
+        <link rel="apple-touch-icon" href="/alagad-logo.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Alagad" />
+      </head>
+      <body className="antialiased">
         {children}
       </body>
     </html>

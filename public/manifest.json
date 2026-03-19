@@ -1,0 +1,24 @@
+{
+  "name": "Alagad Carwash",
+  "short_name": "Alagad",
+  "description": "Alagad Carwash & Auto Detailing Inventory System",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0d1b2a",
+  "theme_color": "#1e6fbf",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/alagad-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/alagad-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
