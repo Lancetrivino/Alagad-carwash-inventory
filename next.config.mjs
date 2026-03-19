@@ -5,6 +5,9 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
+  turbopack: {},
 })
 
-export default withPWA({})
+export default withPWA({
+  turbopack: {},
+})
