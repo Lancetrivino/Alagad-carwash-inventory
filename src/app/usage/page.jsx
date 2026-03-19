@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const S = {
   page: { display: 'flex', minHeight: '100vh', fontFamily: "'Barlow', sans-serif", background: 'var(--navy)' },
-  main: { flex: 1, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 },
-  heading: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
   card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px' },
   label: { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase' },
   input: { width: '100%', background: 'var(--navy-mid)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: "'Barlow', sans-serif" },
@@ -21,8 +19,8 @@ const S = {
 function FilterBtn({ active, onClick, label }) {
   return (
     <button onClick={onClick} style={{
-      padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-      fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+      padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+      cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
       background: active ? 'var(--blue)' : 'var(--navy-mid)',
       color: active ? '#fff' : 'var(--text-secondary)',
       border: active ? '1px solid var(--blue)' : '1px solid var(--border)',
@@ -32,6 +30,7 @@ function FilterBtn({ active, onClick, label }) {
 
 export default function UsagePage() {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [products, setProducts] = useState([])
   const [usageLog, setUsageLog] = useState([])
   const [selectedProduct, setSelectedProduct] = useState('')
@@ -106,19 +105,32 @@ export default function UsagePage() {
     return acc
   }, {})
 
+  const mainPadding = isMobile ? '80px 16px 90px' : '28px'
+
   return (
     <div style={S.page}>
       <Sidebar />
-      <main style={S.main}>
-        <div>
-          <div style={S.heading}>Chemical Usage</div>
-          <div style={S.sub}>Log chemicals used for car wash services</div>
-        </div>
+      <main style={{ flex: 1, padding: mainPadding, display: 'flex', flexDirection: 'column', gap: 20, overflow: 'auto' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          {/* Form */}
-          <div style={S.card}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>Log Usage</div>
+        {!isMobile && (
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chemical Usage</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Log chemicals used for car wash services</div>
+          </div>
+        )}
+
+        {/* Form + Summary — stack on mobile, side by side on desktop */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: isMobile ? 16 : 20,
+        }}>
+
+          {/* Log Usage Form */}
+          <div style={{ ...S.card, padding: isMobile ? 16 : 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
+              Log Usage
+            </div>
 
             {success && (
               <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#4ade80', marginBottom: 16 }}>
@@ -129,69 +141,158 @@ export default function UsagePage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={S.label}>Chemical</label>
-                <select style={S.select} value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }} required>
+                <select
+                  style={S.select}
+                  value={selectedProduct}
+                  onChange={e => { setSelectedProduct(e.target.value); setQuantity(1) }}
+                  required
+                >
                   <option value="">Select a chemical</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.qty} left)</option>)}
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.qty} left)</option>
+                  ))}
                 </select>
               </div>
+
               <div>
                 <label style={S.label}>Quantity Used</label>
-                <input style={S.input} type="number" min="1" max={product?.qty || 1} value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} required />
-                {product && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{product.qty} units available</div>}
+                <input
+                  style={S.input}
+                  type="number" min="1"
+                  max={product?.qty || 1}
+                  value={quantity}
+                  onChange={e => setQuantity(parseInt(e.target.value))}
+                  required
+                />
+                {product && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    {product.qty} units available
+                  </div>
+                )}
               </div>
+
               <div>
                 <label style={S.label}>Date Used</label>
-                <input style={S.input} type="date" value={usedAt} onChange={e => setUsedAt(e.target.value)} required />
+                <input
+                  style={S.input}
+                  type="date"
+                  value={usedAt}
+                  onChange={e => setUsedAt(e.target.value)}
+                  required
+                />
               </div>
+
               {error && <div style={{ fontSize: 13, color: '#f87171' }}>{error}</div>}
-              <button type="submit" disabled={loading || !product} style={{
-                background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
-                color: '#fff', border: 'none', borderRadius: 10, padding: '13px',
-                fontSize: 14, fontWeight: 700, cursor: loading || !product ? 'not-allowed' : 'pointer',
-                opacity: loading || !product ? 0.5 : 1,
-                fontFamily: "'Barlow', sans-serif", letterSpacing: '0.05em', textTransform: 'uppercase',
-              }}>
+
+              <button
+                type="submit"
+                disabled={loading || !product}
+                style={{
+                  background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
+                  color: '#fff', border: 'none', borderRadius: 10,
+                  padding: isMobile ? '15px' : '13px',
+                  fontSize: 14, fontWeight: 700,
+                  cursor: loading || !product ? 'not-allowed' : 'pointer',
+                  opacity: loading || !product ? 0.5 : 1,
+                  fontFamily: "'Barlow', sans-serif",
+                  letterSpacing: '0.05em', textTransform: 'uppercase',
+                }}
+              >
                 {loading ? 'Logging...' : 'Log Usage'}
               </button>
             </form>
           </div>
 
           {/* Summary */}
-          <div style={S.card}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Usage Summary</div>
+          <div style={{ ...S.card, padding: isMobile ? 16 : 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Usage Summary
+              </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
                 <FilterBtn active={filter === 'month'} onClick={() => setFilter('month')} label="Month" />
                 <FilterBtn active={filter === 'week'} onClick={() => setFilter('week')} label="Week" />
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {Object.keys(summary).length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>No usage recorded yet.</div>
-              ) : Object.entries(summary).sort((a, b) => b[1] - a[1]).map(([name, qty]) => (
-                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(30,58,82,0.5)' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{name}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--blue-glow)' }}>{qty} units</span>
-                </div>
-              ))}
-            </div>
+
+            {Object.keys(summary).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                No usage recorded yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {Object.entries(summary)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([name, qty]) => (
+                    <div key={name} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 0', borderBottom: '1px solid rgba(30,58,82,0.5)',
+                    }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{name}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--blue-glow)' }}>{qty} units</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Log Table */}
+        {/* Usage Log */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Usage Log</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Usage Log
+            </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
               <FilterBtn active={filter === 'month'} onClick={() => setFilter('month')} label="Month" />
               <FilterBtn active={filter === 'week'} onClick={() => setFilter('week')} label="Week" />
             </div>
           </div>
+
           {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No usage records found.</div>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>
+              No usage records found.
+            </div>
+          ) : isMobile ? (
+            // Mobile card list
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {filtered.map(u => (
+                <div key={u.id} style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid rgba(30,58,82,0.5)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>
+                      {u.product_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {new Date(u.used_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--blue-glow)' }}>
+                      {u.quantity} units
+                    </span>
+                    <button
+                      onClick={() => deleteUsage(u.id)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
+                        background: 'rgba(248,113,113,0.1)', color: '#f87171',
+                        border: '1px solid rgba(248,113,113,0.3)',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
+            // Desktop table
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
                 <tr>
