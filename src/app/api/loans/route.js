@@ -19,6 +19,20 @@ export async function POST(request) {
   return NextResponse.json({ success: true })
 }
 
+export async function PATCH(request) {
+  if (!supabase) return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+  const { id, status } = await request.json()
+  const { error } = await supabase
+    .from('crew_loans')
+    .update({
+      status,
+      paid_at: status === 'paid' ? new Date().toISOString() : null,
+    })
+    .eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}
+
 export async function DELETE(request) {
   if (!supabase) return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
   const { id } = await request.json()
