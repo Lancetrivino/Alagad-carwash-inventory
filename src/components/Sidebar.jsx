@@ -10,6 +10,7 @@ const links = [
   { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
   { href: '/logbook', label: 'Logbook', icon: '📋' },
   { href: '/salary', label: 'Salary', icon: '💰' },
+  { href: '/restock', label: 'Restock', icon: '📦' },
   { href: '/customers', label: 'Customers', icon: '🚗' },
   { href: '/sales', label: 'Sales', icon: '＋' },
   { href: '/usage', label: 'Usage', icon: '⚗' },

@@ -104,11 +104,17 @@ export default function LogbookPage() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
-  const [filterDate, setFilterDate] = useState('')
-  const [searchLog, setSearchLog] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [tab, setTab] = useState('form')
 
+  // Filter states
+  const [filterDate, setFilterDate] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [quickFilter, setQuickFilter] = useState('all')
+  const [searchLog, setSearchLog] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Form states
   const [vehicleName, setVehicleName] = useState('')
   const [plateNo, setPlateNo] = useState('')
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0])
@@ -179,18 +185,36 @@ export default function LogbookPage() {
     fetchLogs()
   }
 
+  function applyQuickFilter(filter) {
+    setQuickFilter(filter)
+    const now = new Date()
+    if (filter === 'today') {
+      const today = now.toISOString().split('T')[0]
+      setStartDate(today); setEndDate(today); setFilterDate('')
+    } else if (filter === 'week') {
+      const day = now.getDay()
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+      const monday = new Date(new Date().setDate(diff))
+      setStartDate(monday.toISOString().split('T')[0])
+      setEndDate(now.toISOString().split('T')[0])
+      setFilterDate('')
+    } else if (filter === 'month') {
+      setStartDate(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0])
+      setEndDate(now.toISOString().split('T')[0])
+      setFilterDate('')
+    } else {
+      setStartDate(''); setEndDate(''); setFilterDate('')
+    }
+  }
+
   function toggleService(serviceName) {
     setSelectedServices(prev =>
-      prev.includes(serviceName)
-        ? prev.filter(s => s !== serviceName)
-        : [...prev, serviceName]
+      prev.includes(serviceName) ? prev.filter(s => s !== serviceName) : [...prev, serviceName]
     )
   }
 
   function toggleCrewMember(name) {
-    setCrew(prev =>
-      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-    )
+    setCrew(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name])
   }
 
   function computeAmount() {
@@ -322,14 +346,17 @@ export default function LogbookPage() {
   }
 
   const filteredLogs = logs.filter(l => {
-    const matchDate = filterDate ? new Date(l.logged_at).toLocaleDateString('en-CA') === filterDate : true
+    const d = new Date(l.logged_at).toLocaleDateString('en-CA')
+    const matchDate = filterDate ? d === filterDate : true
+    const matchStart = startDate && !filterDate ? d >= startDate : true
+    const matchEnd = endDate && !filterDate ? d <= endDate : true
     const matchSearch = searchLog
       ? l.plate_no?.toLowerCase().includes(searchLog.toLowerCase()) ||
         l.crew?.toLowerCase().includes(searchLog.toLowerCase()) ||
         l.vehicle_name?.toLowerCase().includes(searchLog.toLowerCase())
       : true
     const matchStatus = statusFilter === 'all' ? true : l.payment_status === statusFilter
-    return matchDate && matchSearch && matchStatus
+    return matchDate && matchStart && matchEnd && matchSearch && matchStatus
   })
 
   const filteredTotal = filteredLogs.reduce((s, l) => s + l.total, 0)
@@ -337,7 +364,6 @@ export default function LogbookPage() {
   const filteredGcash = filteredLogs.filter(l => l.payment_method === 'GCash').reduce((s, l) => s + l.total, 0)
   const unpaidLogs = logs.filter(l => l.payment_status === 'unpaid')
   const crewCutPreview = getCrewCutPreview()
-
   const mainPadding = isMobile ? '80px 16px 90px' : '28px'
 
   return (
@@ -380,19 +406,21 @@ export default function LogbookPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           {['form', 'logs'].map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
-              padding: isMobile ? '10px 20px' : '8px 20px',
+              padding: isMobile ? '10px 0' : '8px 20px',
+              flex: isMobile ? 1 : 'none',
               borderRadius: 10, fontSize: 13, fontWeight: 600,
               cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
               background: tab === t ? 'var(--blue)' : 'var(--surface)',
               color: tab === t ? '#fff' : 'var(--text-secondary)',
               border: tab === t ? '1px solid var(--blue)' : '1px solid var(--border)',
-              textTransform: 'uppercase', letterSpacing: '0.06em', flex: isMobile ? 1 : 'none',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
             }}>
               {t === 'form' ? '+ New Entry' : 'View Logs'}
             </button>
           ))}
         </div>
 
+        {/* ── FORM TAB ── */}
         {tab === 'form' && (
           <div style={{ ...S.card, maxWidth: isMobile ? '100%' : 720, padding: isMobile ? 16 : 24 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>
@@ -406,6 +434,7 @@ export default function LogbookPage() {
             )}
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
               <div style={S.grid2}>
                 <div>
                   <label style={S.label}>Vehicle Size</label>
@@ -458,8 +487,10 @@ export default function LogbookPage() {
                   )}
                 </label>
                 <div style={{
-                  display: 'grid', gridTemplateColumns: isMoto(vehicleSize) ? '1fr' : isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 8,
-                  background: 'var(--navy-mid)', borderRadius: 10, border: '1px solid var(--border)', padding: 12,
+                  display: 'grid',
+                  gridTemplateColumns: isMoto(vehicleSize) ? '1fr' : isMobile ? '1fr' : 'repeat(2, 1fr)',
+                  gap: 8, background: 'var(--navy-mid)', borderRadius: 10,
+                  border: '1px solid var(--border)', padding: 12,
                   maxHeight: isMoto(vehicleSize) ? 'auto' : 260, overflowY: 'auto',
                 }}>
                   {availableServices.map(serviceName => {
@@ -690,8 +721,10 @@ export default function LogbookPage() {
                 background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
                 color: '#fff', border: 'none', borderRadius: 10,
                 padding: isMobile ? '16px' : '13px',
-                fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.5 : 1, fontFamily: "'Barlow', sans-serif",
+                fontSize: 15, fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+                fontFamily: "'Barlow', sans-serif",
                 letterSpacing: '0.05em', textTransform: 'uppercase',
               }}>
                 {loading ? 'Saving...' : 'Save Entry'}
@@ -700,38 +733,70 @@ export default function LogbookPage() {
           </div>
         )}
 
+        {/* ── LOGS TAB ── */}
         {tab === 'logs' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Filters */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: isMobile ? 'none' : 'none' }}>
-                <label style={{ ...S.label, marginBottom: 6 }}>Filter by Date</label>
-                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ ...S.input, width: isMobile ? '100%' : 180 }} />
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+
+              {/* Quick filters */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                {[
+                  { key: 'all', label: 'All' },
+                  { key: 'today', label: 'Today' },
+                  { key: 'week', label: 'This Week' },
+                  { key: 'month', label: 'This Month' },
+                ].map(f => (
+                  <button key={f.key} onClick={() => applyQuickFilter(f.key)} style={{
+                    padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+                    background: quickFilter === f.key ? 'var(--blue)' : 'var(--navy-mid)',
+                    color: quickFilter === f.key ? '#fff' : 'var(--text-secondary)',
+                    border: quickFilter === f.key ? '1px solid var(--blue)' : '1px solid var(--border)',
+                  }}>{f.label}</button>
+                ))}
               </div>
-              <div>
-                <label style={{ ...S.label, marginBottom: 6 }}>Search</label>
-                <input type="text" placeholder="Plate, crew, vehicle..." value={searchLog} onChange={e => setSearchLog(e.target.value)} style={{ ...S.input, width: isMobile ? '100%' : 200 }} />
-              </div>
-              <div>
-                <label style={{ ...S.label, marginBottom: 6 }}>Status</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[{ value: 'all', label: 'All' }, { value: 'paid', label: 'Paid' }, { value: 'unpaid', label: 'Unpaid' }].map(f => (
-                    <button key={f.value} onClick={() => setStatusFilter(f.value)} style={{
-                      flex: isMobile ? 1 : 'none', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
-                      background: statusFilter === f.value ? 'var(--blue)' : 'var(--navy-mid)',
-                      color: statusFilter === f.value ? '#fff' : 'var(--text-secondary)',
-                      border: statusFilter === f.value ? '1px solid var(--blue)' : '1px solid var(--border)',
-                    }}>{f.label}</button>
-                  ))}
+
+              {/* Date range + search + status */}
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 10, flexWrap: 'wrap', alignItems: isMobile ? 'stretch' : 'flex-end' }}>
+                <div>
+                  <label style={{ ...S.label, marginBottom: 4 }}>Start Date</label>
+                  <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setFilterDate(''); setQuickFilter('custom') }}
+                    style={{ ...S.input, width: isMobile ? '100%' : 160, padding: '8px 12px', fontSize: 13 }} />
                 </div>
+                <div>
+                  <label style={{ ...S.label, marginBottom: 4 }}>End Date</label>
+                  <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setFilterDate(''); setQuickFilter('custom') }}
+                    style={{ ...S.input, width: isMobile ? '100%' : 160, padding: '8px 12px', fontSize: 13 }} />
+                </div>
+                <div style={{ flex: isMobile ? 'none' : 1 }}>
+                  <label style={{ ...S.label, marginBottom: 4 }}>Search</label>
+                  <input type="text" placeholder="Plate, crew, vehicle..." value={searchLog} onChange={e => setSearchLog(e.target.value)}
+                    style={{ ...S.input, width: isMobile ? '100%' : 200, padding: '8px 12px', fontSize: 13 }} />
+                </div>
+                <div>
+                  <label style={{ ...S.label, marginBottom: 4 }}>Status</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ value: 'all', label: 'All' }, { value: 'paid', label: 'Paid' }, { value: 'unpaid', label: 'Unpaid' }].map(f => (
+                      <button key={f.value} onClick={() => setStatusFilter(f.value)} style={{
+                        flex: isMobile ? 1 : 'none',
+                        padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+                        background: statusFilter === f.value ? 'var(--blue)' : 'var(--navy-mid)',
+                        color: statusFilter === f.value ? '#fff' : 'var(--text-secondary)',
+                        border: statusFilter === f.value ? '1px solid var(--blue)' : '1px solid var(--border)',
+                      }}>{f.label}</button>
+                    ))}
+                  </div>
+                </div>
+                {(startDate || endDate || searchLog || filterDate || statusFilter !== 'all') && (
+                  <button onClick={() => { setStartDate(''); setEndDate(''); setSearchLog(''); setFilterDate(''); setStatusFilter('all'); setQuickFilter('all') }}
+                    style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Barlow', sans-serif" }}>
+                    Clear all
+                  </button>
+                )}
               </div>
-              {(filterDate || searchLog || statusFilter !== 'all') && (
-                <button onClick={() => { setFilterDate(''); setSearchLog(''); setStatusFilter('all') }} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Barlow', sans-serif" }}>
-                  Clear all
-                </button>
-              )}
             </div>
 
             {/* Summary */}
@@ -742,15 +807,15 @@ export default function LogbookPage() {
                 { label: 'Cash', value: `₱${filteredCash.toLocaleString()}`, color: '#fbbf24' },
                 { label: 'GCash', value: `₱${filteredGcash.toLocaleString()}`, color: 'var(--blue-glow)' },
                 ...(unpaidLogs.length > 0 ? [{ label: 'Unpaid', value: `₱${unpaidLogs.reduce((s, l) => s + l.total, 0).toLocaleString()}`, color: '#fbbf24' }] : []),
-              ].map((m, i) => (
-                <div key={i} style={{ textAlign: isMobile ? 'left' : 'center', padding: isMobile ? 0 : '0 20px', borderRight: !isMobile && i < 3 ? '1px solid var(--border)' : 'none' }}>
+              ].map((m, i, arr) => (
+                <div key={i} style={{ textAlign: isMobile ? 'left' : 'center', padding: isMobile ? 0 : '0 20px', borderRight: !isMobile && i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{m.label}</div>
                   <div style={{ fontSize: m.big ? 22 : 18, fontWeight: 700, color: m.color }}>{m.value}</div>
                 </div>
               ))}
             </div>
 
-            {/* Mobile cards / Desktop table */}
+            {/* Mobile cards */}
             {isMobile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {filteredLogs.length === 0 ? (
@@ -763,7 +828,6 @@ export default function LogbookPage() {
                       border: `1px solid ${isUnpaid ? 'rgba(251,191,36,0.3)' : 'var(--border)'}`,
                       borderRadius: 12, padding: 14,
                     }}>
-                      {/* Top row */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{l.vehicle_name}</div>
@@ -776,15 +840,11 @@ export default function LogbookPage() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Services */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                         {l.service.split(', ').map((s, i) => (
                           <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: 'var(--text-secondary)' }}>{s}</span>
                         ))}
                       </div>
-
-                      {/* Bottom row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ fontSize: 11, background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)', color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{l.vehicle_size}</span>
@@ -807,6 +867,7 @@ export default function LogbookPage() {
                 })}
               </div>
             ) : (
+              /* Desktop table */
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1100 }}>
@@ -843,34 +904,50 @@ export default function LogbookPage() {
                             <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
                             <td style={{ ...S.td, color: 'var(--blue-glow)', fontWeight: 600 }}>{l.plate_no || '—'}</td>
                             <td style={S.td}>
-                              <span style={{ background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)', color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{l.vehicle_size}</span>
+                              <span style={{ background: isMoto(l.vehicle_size) ? 'rgba(168,85,247,0.15)' : 'rgba(46,141,232,0.15)', color: isMoto(l.vehicle_size) ? '#a855f7' : 'var(--blue-glow)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                                {l.vehicle_size}
+                              </span>
                             </td>
                             <td style={{ ...S.td, maxWidth: 180 }}>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                {l.service.split(', ').map((s, i) => <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{s}</span>)}
+                                {l.service.split(', ').map((s, i) => (
+                                  <span key={i} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{s}</span>
+                                ))}
                               </div>
                             </td>
                             <td style={{ ...S.td, textAlign: 'right', color: 'var(--text-secondary)' }}>₱{l.amount?.toLocaleString()}</td>
                             <td style={{ ...S.td, textAlign: 'right', color: '#f87171' }}>{l.discount > 0 ? `- ₱${l.discount?.toLocaleString()}` : '—'}</td>
                             <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: isUnpaid ? '#fbbf24' : '#4ade80' }}>₱{l.total?.toLocaleString()}</td>
                             <td style={{ ...S.td, textAlign: 'center' }}>
-                              <span style={{ background: l.payment_method === 'GCash' ? 'rgba(34,197,94,0.15)' : 'rgba(250,191,36,0.15)', color: l.payment_method === 'GCash' ? '#4ade80' : '#fbbf24', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>{l.payment_method}</span>
+                              <span style={{ background: l.payment_method === 'GCash' ? 'rgba(34,197,94,0.15)' : 'rgba(250,191,36,0.15)', color: l.payment_method === 'GCash' ? '#4ade80' : '#fbbf24', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                                {l.payment_method}
+                              </span>
                             </td>
                             <td style={{ ...S.td, textAlign: 'center' }}>
                               {isUnpaid ? (
-                                <button onClick={() => markAsPaid(l.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)', whiteSpace: 'nowrap' }}>⏳ Mark Paid</button>
+                                <button onClick={() => markAsPaid(l.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)', whiteSpace: 'nowrap' }}>
+                                  ⏳ Mark Paid
+                                </button>
                               ) : (
                                 <span style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>✓ Paid</span>
                               )}
                             </td>
                             <td style={S.td}>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                {l.crew.split(', ').map((c, i) => <span key={i} style={{ background: 'rgba(46,141,232,0.1)', color: 'var(--blue-glow)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 600 }}>{c}</span>)}
-                                {l.crew_assignment && <span style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>{l.crew_assignment.mode === '5050' ? 'even' : l.crew_assignment.mode === 'manual' ? 'manual' : 'assigned'}</span>}
+                                {l.crew.split(', ').map((c, i) => (
+                                  <span key={i} style={{ background: 'rgba(46,141,232,0.1)', color: 'var(--blue-glow)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 4, padding: '1px 6px', fontSize: 11, fontWeight: 600 }}>{c}</span>
+                                ))}
+                                {l.crew_assignment && (
+                                  <span style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>
+                                    {l.crew_assignment.mode === '5050' ? 'even' : l.crew_assignment.mode === 'manual' ? 'manual' : 'assigned'}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td style={{ ...S.td, textAlign: 'center' }}>
-                              <button onClick={() => deleteLog(l.id)} style={{ padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>Delete</button>
+                              <button onClick={() => deleteLog(l.id)} style={{ padding: '5px 12px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', transition: 'all 0.15s' }}>
+                                Delete
+                              </button>
                             </td>
                           </tr>
                         )

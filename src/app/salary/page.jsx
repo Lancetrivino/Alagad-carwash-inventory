@@ -7,13 +7,8 @@ import Sidebar from '@/components/Sidebar'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 const DETAILING_SERVICES = [
-  'Glass Detailing',
-  'Mags Detailing',
-  'Engine Detailing',
-  'Interior Detailing',
-  'Exterior Detailing',
-  'Ceramic Coating',
-  'Trim Black Restoration',
+  'Glass Detailing', 'Mags Detailing', 'Engine Detailing',
+  'Interior Detailing', 'Exterior Detailing', 'Ceramic Coating', 'Trim Black Restoration',
 ]
 
 const S = {
@@ -29,85 +24,66 @@ const S = {
 
 function parseAssignment(raw) {
   if (!raw) return null
-  if (typeof raw === 'string') {
-    try { return JSON.parse(raw) } catch { return null }
-  }
+  if (typeof raw === 'string') { try { return JSON.parse(raw) } catch { return null } }
   return raw
 }
 
 function computeSalary(logs, crewName) {
   let regularTotal = 0
   let detailingTotal = 0
-
   logs.forEach(log => {
-    const crewMembers = log.crew
-      ? log.crew.split(', ').map(c => c.trim().toLowerCase())
-      : []
+    const crewMembers = log.crew ? log.crew.split(', ').map(c => c.trim().toLowerCase()) : []
     const normalizedName = crewName.trim().toLowerCase()
     if (!crewMembers.includes(normalizedName)) return
-
     const services = log.service ? log.service.split(', ') : []
     if (services.length === 0) return
-
     const assignment = parseAssignment(log.crew_assignment)
     const isSingleCrew = crewMembers.length === 1
     const mode = isSingleCrew ? 'single' : (assignment?.mode || '5050')
-
-    const getServiceType = (s) =>
-      DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase()))
+    const isDetailing = (s) => DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase()))
 
     if (mode === 'single') {
       services.forEach(s => {
         const portion = log.total / services.length
-        if (getServiceType(s)) detailingTotal += portion
+        if (isDetailing(s)) detailingTotal += portion
         else regularTotal += portion
       })
       return
     }
-
     if (mode === '5050') {
       const share = log.total / crewMembers.length
-      const detailingCount = services.filter(s => getServiceType(s)).length
+      const dc = services.filter(s => isDetailing(s)).length
       if (services.length > 0) {
-        detailingTotal += share * (detailingCount / services.length)
-        regularTotal += share * ((services.length - detailingCount) / services.length)
-      } else {
-        regularTotal += share
-      }
+        detailingTotal += share * (dc / services.length)
+        regularTotal += share * ((services.length - dc) / services.length)
+      } else regularTotal += share
       return
     }
-
     if (mode === 'manual') {
       const splits = assignment?.splits || {}
-      const splitKey = Object.keys(splits).find(k => k.trim().toLowerCase() === normalizedName)
-      const pct = splitKey ? (parseFloat(splits[splitKey]) || 0) / 100 : 0
+      const key = Object.keys(splits).find(k => k.trim().toLowerCase() === normalizedName)
+      const pct = key ? (parseFloat(splits[key]) || 0) / 100 : 0
       const share = log.total * pct
-      const detailingCount = services.filter(s => getServiceType(s)).length
+      const dc = services.filter(s => isDetailing(s)).length
       if (services.length > 0) {
-        detailingTotal += share * (detailingCount / services.length)
-        regularTotal += share * (1 - detailingCount / services.length)
-      } else {
-        regularTotal += share
-      }
+        detailingTotal += share * (dc / services.length)
+        regularTotal += share * (1 - dc / services.length)
+      } else regularTotal += share
       return
     }
-
     if (mode === 'assign') {
       const assignments = assignment?.assignments || {}
       services.forEach(s => {
-        const assignedKey = Object.keys(assignments).find(k => k === s)
-        const assignedTo = assignedKey
-          ? (assignments[assignedKey] || '').trim().toLowerCase()
-          : ''
+        const k = Object.keys(assignments).find(k => k === s)
+        const assignedTo = k ? (assignments[k] || '').trim().toLowerCase() : ''
         if (assignedTo === normalizedName) {
           const portion = log.total / services.length
-          if (getServiceType(s)) detailingTotal += portion
+          if (isDetailing(s)) detailingTotal += portion
           else regularTotal += portion
         }
       })
     }
   })
-
   const regularCut = regularTotal * 0.30
   const detailingCut = detailingTotal * 0.40
   return {
@@ -130,6 +106,18 @@ export default function SalaryPage() {
   const [adding, setAdding] = useState(false)
   const [selectedCrew, setSelectedCrew] = useState(null)
   const [filterDate, setFilterDate] = useState('')
+
+  // Weekly summary date range
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    return new Date(new Date().setDate(diff)).toISOString().split('T')[0]
+  })
+  const [weekEnd2, setWeekEnd2] = useState(new Date().toISOString().split('T')[0])
+  const [summaryQuickFilter, setSummaryQuickFilter] = useState('this_week')
+
+  // Loan form
   const [loanCrewId, setLoanCrewId] = useState('')
   const [loanAmount, setLoanAmount] = useState('')
   const [loanNote, setLoanNote] = useState('')
@@ -137,13 +125,11 @@ export default function SalaryPage() {
   const [loanLoading, setLoanLoading] = useState(false)
   const [loanSuccess, setLoanSuccess] = useState(false)
 
-  const [weekStart, setWeekStart] = useState(() => {
-    const d = new Date()
-    const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(new Date().setDate(diff))
-    return monday.toISOString().split('T')[0]
-  })
+  // Loan filters
+  const [loanStatusFilter, setLoanStatusFilter] = useState('unpaid')
+  const [loanStartDate, setLoanStartDate] = useState('')
+  const [loanEndDate, setLoanEndDate] = useState('')
+  const [loanCrewFilter, setLoanCrewFilter] = useState('all')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -156,12 +142,10 @@ export default function SalaryPage() {
     const res = await fetch('/api/crew')
     setCrew(await res.json())
   }
-
   async function fetchLogs() {
     const res = await fetch('/api/logbook')
     setLogs(await res.json())
   }
-
   async function fetchLoans() {
     const res = await fetch('/api/loans')
     setLoans(await res.json())
@@ -170,32 +154,18 @@ export default function SalaryPage() {
   async function addCrew() {
     if (!newCrewName.trim()) return
     setAdding(true)
-    await fetch('/api/crew', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newCrewName.trim() }),
-    })
-    setNewCrewName('')
-    setAdding(false)
-    fetchCrew()
+    await fetch('/api/crew', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCrewName.trim() }) })
+    setNewCrewName(''); setAdding(false); fetchCrew()
   }
 
   async function toggleActive(member) {
-    await fetch('/api/crew', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: member.id, active: !member.active }),
-    })
+    await fetch('/api/crew', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: member.id, active: !member.active }) })
     fetchCrew()
   }
 
   async function deleteCrew(id) {
     if (!confirm('Remove this crew member?')) return
-    await fetch('/api/crew', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    await fetch('/api/crew', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     fetchCrew()
   }
 
@@ -203,17 +173,10 @@ export default function SalaryPage() {
     e.preventDefault()
     if (!loanCrewId || !loanAmount) return
     setLoanLoading(true)
-    const selectedMember = crew.find(c => c.id === parseInt(loanCrewId))
+    const member = crew.find(c => c.id === parseInt(loanCrewId))
     await fetch('/api/loans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        crew_id: parseInt(loanCrewId),
-        crew_name: selectedMember?.name,
-        amount: parseFloat(loanAmount),
-        note: loanNote,
-        loaned_at: loanDate,
-      }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crew_id: parseInt(loanCrewId), crew_name: member?.name, amount: parseFloat(loanAmount), note: loanNote, loaned_at: loanDate, status: 'unpaid' }),
     })
     setLoanCrewId(''); setLoanAmount(''); setLoanNote('')
     setLoanDate(new Date().toISOString().split('T')[0])
@@ -224,22 +187,52 @@ export default function SalaryPage() {
 
   async function deleteLoan(id) {
     if (!confirm('Delete this loan record?')) return
-    await fetch('/api/loans', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    await fetch('/api/loans', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     fetchLoans()
   }
 
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-  const weekEndStr = weekEnd.toISOString().split('T')[0]
+  async function markLoanPaid(id) {
+    await fetch('/api/loans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'paid' }) })
+    fetchLoans()
+  }
+
+  async function markLoanUnpaid(id) {
+    await fetch('/api/loans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'unpaid' }) })
+    fetchLoans()
+  }
+
+  async function markAllPaid(crewName) {
+    const unpaid = loans.filter(l => l.crew_name?.toLowerCase().trim() === crewName.toLowerCase().trim() && l.status !== 'paid')
+    await Promise.all(unpaid.map(l => fetch('/api/loans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: l.id, status: 'paid' }) })))
+    fetchLoans()
+  }
+
+  function applySummaryQuickFilter(key) {
+    setSummaryQuickFilter(key)
+    const now = new Date()
+    if (key === 'this_week') {
+      const day = now.getDay()
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+      setWeekStart(new Date(new Date().setDate(diff)).toISOString().split('T')[0])
+      setWeekEnd2(now.toISOString().split('T')[0])
+    } else if (key === 'last_week') {
+      const day = now.getDay()
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+      const thisMonday = new Date(new Date().setDate(diff))
+      const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7)
+      const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate() - 1)
+      setWeekStart(lastMonday.toISOString().split('T')[0])
+      setWeekEnd2(lastSunday.toISOString().split('T')[0])
+    } else if (key === 'this_month') {
+      setWeekStart(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0])
+      setWeekEnd2(now.toISOString().split('T')[0])
+    }
+  }
 
   function getWeekLogs() {
     return logs.filter(l => {
       const d = new Date(l.logged_at).toLocaleDateString('en-CA')
-      return d >= weekStart && d <= weekEndStr
+      return d >= weekStart && d <= weekEnd2
     })
   }
 
@@ -249,25 +242,21 @@ export default function SalaryPage() {
 
   function getWeekDates() {
     const dates = []
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart)
-      d.setDate(d.getDate() + i)
-      dates.push(d.toISOString().split('T')[0])
+    const start = new Date(weekStart)
+    const end = new Date(weekEnd2)
+    const current = new Date(start)
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0])
+      current.setDate(current.getDate() + 1)
     }
     return dates
   }
 
-  function getWeekLoans(crewName) {
+  function getUnpaidLoans(crewName, beforeDate) {
     return loans.filter(l =>
       l.crew_name?.toLowerCase().trim() === crewName.toLowerCase().trim() &&
-      l.loaned_at >= weekStart && l.loaned_at <= weekEndStr
-    )
-  }
-
-  function getPreviousUnpaidLoans(crewName) {
-    return loans.filter(l =>
-      l.crew_name?.toLowerCase().trim() === crewName.toLowerCase().trim() &&
-      l.loaned_at < weekStart
+      l.status !== 'paid' &&
+      (!beforeDate || l.loaned_at <= beforeDate)
     )
   }
 
@@ -276,15 +265,12 @@ export default function SalaryPage() {
 
   const weekSummary = activeCrew.map(c => {
     const salary = computeSalary(weekLogs, c.name)
-    const weekLoanTotal = getWeekLoans(c.name).reduce((s, l) => s + l.amount, 0)
-    const prevLoanTotal = getPreviousUnpaidLoans(c.name).reduce((s, l) => s + l.amount, 0)
-    const totalLoan = weekLoanTotal + prevLoanTotal
+    const unpaidLoans = getUnpaidLoans(c.name, weekEnd2)
+    const totalLoan = unpaidLoans.reduce((s, l) => s + l.amount, 0)
     const netSalary = Math.max(0, salary.grossSalary - totalLoan)
     const unpaidBalance = Math.max(0, totalLoan - salary.grossSalary)
     return {
       ...c, ...salary,
-      weekLoanTotal: Math.round(weekLoanTotal),
-      prevLoanTotal: Math.round(prevLoanTotal),
       totalLoan: Math.round(totalLoan),
       netSalary: Math.round(netSalary),
       unpaidBalance: Math.round(unpaidBalance),
@@ -293,8 +279,7 @@ export default function SalaryPage() {
 
   const selectedCrewWeekDetail = selectedCrew
     ? getWeekDates().map(date => {
-        const dayLogs = getDayLogs(date)
-        const crewDayLogs = dayLogs.filter(l => {
+        const crewDayLogs = getDayLogs(date).filter(l => {
           const members = l.crew?.split(', ').map(c => c.trim().toLowerCase()) || []
           return members.includes(selectedCrew.name.toLowerCase().trim())
         })
@@ -313,10 +298,18 @@ export default function SalaryPage() {
       }))
     : []
 
-  const loansByCrew = crew.map(c => ({
+  const filteredLoans = loans.filter(l => {
+    const matchStatus = loanStatusFilter === 'all' ? true : l.status === loanStatusFilter
+    const matchCrew = loanCrewFilter === 'all' ? true : l.crew_name?.toLowerCase().trim() === loanCrewFilter.toLowerCase().trim()
+    const matchStart = loanStartDate ? l.loaned_at >= loanStartDate : true
+    const matchEnd = loanEndDate ? l.loaned_at <= loanEndDate : true
+    return matchStatus && matchCrew && matchStart && matchEnd
+  })
+
+  const loansByCrew = activeCrew.map(c => ({
     ...c,
-    loans: loans.filter(l => l.crew_name?.toLowerCase().trim() === c.name.toLowerCase().trim()),
-    totalLoaned: loans.filter(l => l.crew_name?.toLowerCase().trim() === c.name.toLowerCase().trim()).reduce((s, l) => s + l.amount, 0),
+    loans: filteredLoans.filter(l => l.crew_name?.toLowerCase().trim() === c.name.toLowerCase().trim()),
+    totalUnpaid: loans.filter(l => l.crew_name?.toLowerCase().trim() === c.name.toLowerCase().trim() && l.status !== 'paid').reduce((s, l) => s + l.amount, 0),
   })).filter(c => c.loans.length > 0)
 
   const mainPadding = isMobile ? '80px 16px 90px' : '28px'
@@ -334,7 +327,7 @@ export default function SalaryPage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           {[
             { key: 'summary', label: isMobile ? 'Weekly' : 'Weekly Summary' },
             { key: 'daily', label: isMobile ? 'Daily' : 'Daily Breakdown' },
@@ -354,24 +347,51 @@ export default function SalaryPage() {
           ))}
         </div>
 
-        {/* WEEKLY SUMMARY */}
+        {/* ── WEEKLY SUMMARY ── */}
         {tab === 'summary' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Week picker */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ flex: isMobile ? 1 : 'none' }}>
-                <label style={S.label}>Week Starting (Monday)</label>
-                <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} style={{ ...S.input, width: isMobile ? '100%' : 200 }} />
+            {/* Date range card */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+              {/* Quick filters */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                {[
+                  { key: 'this_week', label: 'This Week' },
+                  { key: 'last_week', label: 'Last Week' },
+                  { key: 'this_month', label: 'This Month' },
+                  { key: 'custom', label: 'Custom' },
+                ].map(f => (
+                  <button key={f.key} onClick={() => applySummaryQuickFilter(f.key)} style={{
+                    padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+                    background: summaryQuickFilter === f.key ? 'var(--blue)' : 'var(--navy-mid)',
+                    color: summaryQuickFilter === f.key ? '#fff' : 'var(--text-secondary)',
+                    border: summaryQuickFilter === f.key ? '1px solid var(--blue)' : '1px solid var(--border)',
+                  }}>{f.label}</button>
+                ))}
               </div>
-              {!isMobile && (
-                <div style={{ marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>
-                  {new Date(weekStart + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} — {weekEnd.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+
+              {/* Date pickers */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: isMobile ? 1 : 'none' }}>
+                  <label style={S.label}>Start Date</label>
+                  <input type="date" value={weekStart} onChange={e => { setWeekStart(e.target.value); setSummaryQuickFilter('custom') }}
+                    style={{ ...S.input, width: isMobile ? '100%' : 180 }} />
                 </div>
-              )}
+                <div style={{ flex: isMobile ? 1 : 'none' }}>
+                  <label style={S.label}>End Date</label>
+                  <input type="date" value={weekEnd2} onChange={e => { setWeekEnd2(e.target.value); setSummaryQuickFilter('custom') }}
+                    style={{ ...S.input, width: isMobile ? '100%' : 180 }} />
+                </div>
+                {!isMobile && weekStart && weekEnd2 && (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', paddingBottom: 14 }}>
+                    {new Date(weekStart + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} — {new Date(weekEnd2 + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Week totals */}
+            {/* Metric cards */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: isMobile ? 10 : 14 }}>
               {[
                 { label: 'Vehicles', value: weekLogs.length, color: 'var(--text-primary)', big: true },
@@ -387,7 +407,7 @@ export default function SalaryPage() {
               ))}
             </div>
 
-            {/* Crew salary cards */}
+            {/* Crew cards */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
               {weekSummary.map(c => (
                 <div key={c.id}
@@ -415,14 +435,9 @@ export default function SalaryPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, color: '#fbbf24', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
                       <span>Gross Pay</span><span>₱{c.grossSalary.toLocaleString()}</span>
                     </div>
-                    {c.weekLoanTotal > 0 && (
+                    {c.totalLoan > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#f87171' }}>
-                        <span>This week loans</span><span>- ₱{c.weekLoanTotal.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {c.prevLoanTotal > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#f87171' }}>
-                        <span>Carried over</span><span>- ₱{c.prevLoanTotal.toLocaleString()}</span>
+                        <span>Unpaid loans</span><span>- ₱{c.totalLoan.toLocaleString()}</span>
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: c.netSalary > 0 ? 'var(--blue-glow)' : '#f87171', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
@@ -430,7 +445,7 @@ export default function SalaryPage() {
                     </div>
                     {c.unpaidBalance > 0 && (
                       <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#f87171', marginTop: 4 }}>
-                        <span>Unpaid balance (carry over)</span><span>₱{c.unpaidBalance.toLocaleString()}</span>
+                        <span>Carry over balance</span><span>₱{c.unpaidBalance.toLocaleString()}</span>
                       </div>
                     )}
                   </div>
@@ -438,7 +453,7 @@ export default function SalaryPage() {
               ))}
             </div>
 
-            {/* Per-crew weekly detail */}
+            {/* Per-crew detail */}
             {selectedCrew && selectedCrewWeekDetail.length > 0 && (
               <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -447,7 +462,6 @@ export default function SalaryPage() {
                   </span>
                   <button onClick={() => setSelectedCrew(null)} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>Close</button>
                 </div>
-
                 {isMobile ? (
                   <div>
                     {selectedCrewWeekDetail.map(d => (
@@ -458,7 +472,7 @@ export default function SalaryPage() {
                           </span>
                           <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>₱{d.grossSalary.toLocaleString()}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                           <span>{d.logs.length} vehicles</span>
                           <span>Regular: ₱{d.regularCut.toLocaleString()}</span>
                           <span>Detail: ₱{d.detailingCut.toLocaleString()}</span>
@@ -512,7 +526,7 @@ export default function SalaryPage() {
           </div>
         )}
 
-        {/* DAILY BREAKDOWN */}
+        {/* ── DAILY BREAKDOWN ── */}
         {tab === 'daily' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
@@ -522,7 +536,6 @@ export default function SalaryPage() {
 
             {filterDate && (
               <>
-                {/* Day metrics */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: isMobile ? 10 : 14 }}>
                   {[
                     { label: 'Vehicles', value: getDayLogs(filterDate).length, color: 'var(--text-primary)', big: true },
@@ -536,7 +549,6 @@ export default function SalaryPage() {
                   ))}
                 </div>
 
-                {/* Crew day summary */}
                 {isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {daySummary.map(c => (
@@ -549,21 +561,11 @@ export default function SalaryPage() {
                           <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{c.vehicleCount} vehicles</span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
-                            <span>Regular total</span><span>₱{c.regularTotal.toLocaleString()}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
-                            <span>Detailing total</span><span>₱{c.detailingTotal.toLocaleString()}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--blue-glow)' }}>
-                            <span>Regular cut (30%)</span><span>₱{c.regularCut.toLocaleString()}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#a855f7' }}>
-                            <span>Detailing cut (40%)</span><span>₱{c.detailingCut.toLocaleString()}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: '#fbbf24', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
-                            <span>Day Pay</span><span>₱{c.grossSalary.toLocaleString()}</span>
-                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}><span>Regular total</span><span>₱{c.regularTotal.toLocaleString()}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}><span>Detailing total</span><span>₱{c.detailingTotal.toLocaleString()}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--blue-glow)' }}><span>Regular cut (30%)</span><span>₱{c.regularCut.toLocaleString()}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#a855f7' }}><span>Detailing cut (40%)</span><span>₱{c.detailingCut.toLocaleString()}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: '#fbbf24', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}><span>Day Pay</span><span>₱{c.grossSalary.toLocaleString()}</span></div>
                         </div>
                       </div>
                     ))}
@@ -604,7 +606,6 @@ export default function SalaryPage() {
                   </div>
                 )}
 
-                {/* Per crew vehicle log */}
                 {activeCrew.map(c => {
                   const crewDayLogs = getDayLogs(filterDate).filter(l => {
                     const members = l.crew?.split(', ').map(m => m.trim().toLowerCase()) || []
@@ -628,13 +629,11 @@ export default function SalaryPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                   <div>
                                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{l.vehicle_name}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                      {new Date(l.logged_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(l.logged_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontWeight: 700, fontSize: 14, color: '#fbbf24' }}>₱{salary.grossSalary.toLocaleString()}</div>
-                                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: mode === 'single' ? 'rgba(34,197,94,0.1)' : mode === '5050' ? 'rgba(46,141,232,0.1)' : 'rgba(251,191,36,0.1)', color: mode === 'single' ? '#4ade80' : mode === '5050' ? 'var(--blue-glow)' : '#fbbf24' }}>
+                                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: 'rgba(46,141,232,0.1)', color: 'var(--blue-glow)' }}>
                                       {mode === 'single' ? 'solo' : mode === '5050' ? 'even' : mode === 'manual' ? 'manual' : 'assigned'}
                                     </span>
                                   </div>
@@ -670,10 +669,10 @@ export default function SalaryPage() {
                                 <tr key={l.id} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                   <td style={{ ...S.td, color: 'var(--text-muted)' }}>{new Date(l.logged_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</td>
                                   <td style={{ ...S.td, fontWeight: 600 }}>{l.vehicle_name}</td>
-                                  <td style={{ ...S.td, color: 'var(--text-secondary)', maxWidth: 220 }}>
+                                  <td style={{ ...S.td, maxWidth: 220 }}>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                       {l.service.split(', ').map((s, i) => (
-                                        <span key={i} style={{ background: DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? 'rgba(168,85,247,0.3)' : 'var(--border)'}`, borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', color: DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? '#a855f7' : 'var(--text-secondary)' }}>{s}</span>
+                                        <span key={i} style={{ background: DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? 'rgba(168,85,247,0.3)' : 'var(--border)'}`, borderRadius: 4, padding: '1px 6px', fontSize: 11, color: DETAILING_SERVICES.some(d => s.toLowerCase().includes(d.toLowerCase())) ? '#a855f7' : 'var(--text-secondary)' }}>{s}</span>
                                       ))}
                                     </div>
                                   </td>
@@ -704,9 +703,11 @@ export default function SalaryPage() {
           </div>
         )}
 
-        {/* LOANS */}
+        {/* ── LOANS ── */}
         {tab === 'loans' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Add Loan Form */}
             <div style={{ ...S.card, maxWidth: isMobile ? '100%' : 560 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>
                 Record Loan / Credit
@@ -755,32 +756,127 @@ export default function SalaryPage() {
               </form>
             </div>
 
+            {/* Loan Filters */}
+            <div style={{ ...S.card, padding: '16px 20px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
+                Filter Loans
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
+                <div>
+                  <label style={S.label}>Status</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[
+                      { value: 'unpaid', label: 'Unpaid', color: '#f87171' },
+                      { value: 'paid', label: 'Paid', color: '#4ade80' },
+                      { value: 'all', label: 'All', color: 'var(--blue-glow)' },
+                    ].map(f => (
+                      <button key={f.value} onClick={() => setLoanStatusFilter(f.value)} style={{
+                        flex: 1, padding: '7px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: "'Barlow', sans-serif", transition: 'all 0.15s',
+                        background: loanStatusFilter === f.value
+                          ? f.value === 'unpaid' ? 'rgba(248,113,113,0.2)' : f.value === 'paid' ? 'rgba(34,197,94,0.2)' : 'rgba(46,141,232,0.2)'
+                          : 'var(--navy-mid)',
+                        color: loanStatusFilter === f.value ? f.color : 'var(--text-secondary)',
+                        border: loanStatusFilter === f.value
+                          ? f.value === 'unpaid' ? '1px solid rgba(248,113,113,0.4)' : f.value === 'paid' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(46,141,232,0.4)'
+                          : '1px solid var(--border)',
+                      }}>{f.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={S.label}>Crew</label>
+                  <select style={{ ...S.select, padding: '8px 12px', fontSize: 13 }} value={loanCrewFilter} onChange={e => setLoanCrewFilter(e.target.value)}>
+                    <option value="all">All crew</option>
+                    {activeCrew.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Start Date</label>
+                  <input type="date" value={loanStartDate} onChange={e => setLoanStartDate(e.target.value)} style={{ ...S.input, padding: '8px 12px', fontSize: 13 }} />
+                </div>
+                <div>
+                  <label style={S.label}>End Date</label>
+                  <input type="date" value={loanEndDate} onChange={e => setLoanEndDate(e.target.value)} style={{ ...S.input, padding: '8px 12px', fontSize: 13 }} />
+                </div>
+              </div>
+              {(loanStartDate || loanEndDate || loanCrewFilter !== 'all' || loanStatusFilter !== 'unpaid') && (
+                <button onClick={() => { setLoanStartDate(''); setLoanEndDate(''); setLoanCrewFilter('all'); setLoanStatusFilter('unpaid') }}
+                  style={{ marginTop: 12, padding: '6px 14px', borderRadius: 8, fontSize: 12, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Barlow', sans-serif" }}>
+                  Reset filters
+                </button>
+              )}
+            </div>
+
+            {/* Summary strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, minmax(0, 200px))', gap: 12 }}>
+              {[
+                { label: 'Unpaid Total', value: `₱${loans.filter(l => l.status !== 'paid').reduce((s, l) => s + l.amount, 0).toLocaleString()}`, color: '#f87171' },
+                { label: 'Paid Total', value: `₱${loans.filter(l => l.status === 'paid').reduce((s, l) => s + l.amount, 0).toLocaleString()}`, color: '#4ade80' },
+                { label: 'Filtered Records', value: filteredLoans.length, color: 'var(--text-primary)', big: true },
+              ].map((m, i) => (
+                <div key={i} style={{ ...S.card, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{m.label}</div>
+                  <div style={{ fontSize: m.big ? 22 : 16, fontWeight: 700, color: m.color }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Loans by crew */}
             {loansByCrew.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No loans recorded yet.</div>
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>No loans found.</div>
             ) : loansByCrew.map(c => (
               <div key={c.id} style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--navy-mid)' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'var(--navy-mid)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>
                       {c.name[0].toUpperCase()}
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{c.name}</span>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Loaned</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#f87171' }}>₱{c.totalLoaned.toLocaleString()}</div>
-                  </div>
-                </div>
-                {c.loans.map(l => (
-                  <div key={l.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        {new Date(l.loaned_at + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{c.name}</div>
+                      {c.totalUnpaid > 0 && <div style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>₱{c.totalUnpaid.toLocaleString()} unpaid</div>}
+                    </div>
+                  </div>
+                  {c.totalUnpaid > 0 && (
+                    <button onClick={() => markAllPaid(c.name)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                      ✓ Mark All Paid
+                    </button>
+                  )}
+                </div>
+
+                {c.loans.map(l => (
+                  <div key={l.id} style={{
+                    padding: '12px 16px', borderBottom: '1px solid rgba(30,58,82,0.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+                    background: l.status === 'paid' ? 'rgba(34,197,94,0.03)' : 'transparent',
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                          {new Date(l.loaned_at + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: l.status === 'paid' ? 'rgba(34,197,94,0.15)' : 'rgba(248,113,113,0.15)', color: l.status === 'paid' ? '#4ade80' : '#f87171' }}>
+                          {l.status === 'paid' ? '✓ Paid' : '⏳ Unpaid'}
+                        </span>
                       </div>
                       {l.note && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{l.note}</div>}
+                      {l.status === 'paid' && l.paid_at && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          Paid {new Date(l.paid_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontWeight: 700, color: '#f87171', fontSize: 14 }}>₱{l.amount.toLocaleString()}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontWeight: 700, color: l.status === 'paid' ? '#4ade80' : '#f87171', fontSize: 15 }}>₱{l.amount.toLocaleString()}</span>
+                      {l.status !== 'paid' ? (
+                        <button onClick={() => markLoanPaid(l.id)} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)', whiteSpace: 'nowrap' }}>
+                          Mark Paid
+                        </button>
+                      ) : (
+                        <button onClick={() => markLoanUnpaid(l.id)} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)', whiteSpace: 'nowrap' }}>
+                          Undo
+                        </button>
+                      )}
                       <button onClick={() => deleteLoan(l.id)} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
                         Delete
                       </button>
@@ -792,7 +888,7 @@ export default function SalaryPage() {
           </div>
         )}
 
-        {/* MANAGE CREW */}
+        {/* ── MANAGE CREW ── */}
         {tab === 'crew' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: isMobile ? '100%' : 500 }}>
             <div style={S.card}>
@@ -800,13 +896,7 @@ export default function SalaryPage() {
                 Add New Crew Member
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <input
-                  style={{ ...S.input, flex: 1 }}
-                  type="text" value={newCrewName}
-                  onChange={e => setNewCrewName(e.target.value)}
-                  placeholder="Enter crew name"
-                  onKeyDown={e => e.key === 'Enter' && addCrew()}
-                />
+                <input style={{ ...S.input, flex: 1 }} type="text" value={newCrewName} onChange={e => setNewCrewName(e.target.value)} placeholder="Enter crew name" onKeyDown={e => e.key === 'Enter' && addCrew()} />
                 <button onClick={addCrew} disabled={adding || !newCrewName.trim()} style={{
                   background: 'linear-gradient(135deg, var(--blue), var(--blue-glow))',
                   color: '#fff', border: 'none', borderRadius: 10, padding: '0 20px',
@@ -830,13 +920,7 @@ export default function SalaryPage() {
               ) : crew.map(c => (
                 <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid rgba(30,58,82,0.5)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%',
-                      background: c.active ? 'linear-gradient(135deg, var(--blue), var(--blue-glow))' : 'var(--navy-mid)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 14, fontWeight: 700, color: c.active ? '#fff' : 'var(--text-muted)',
-                      border: c.active ? 'none' : '1px solid var(--border)',
-                    }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: c.active ? 'linear-gradient(135deg, var(--blue), var(--blue-glow))' : 'var(--navy-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: c.active ? '#fff' : 'var(--text-muted)', border: c.active ? 'none' : '1px solid var(--border)' }}>
                       {c.name[0].toUpperCase()}
                     </div>
                     <div>
@@ -845,21 +929,10 @@ export default function SalaryPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => toggleActive(c)} style={{
-                      padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
-                      background: c.active ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)',
-                      color: c.active ? '#fbbf24' : '#4ade80',
-                      border: c.active ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(34,197,94,0.3)',
-                    }}>
+                    <button onClick={() => toggleActive(c)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: c.active ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)', color: c.active ? '#fbbf24' : '#4ade80', border: c.active ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(34,197,94,0.3)' }}>
                       {c.active ? 'Off' : 'On'}
                     </button>
-                    <button onClick={() => deleteCrew(c.id)} style={{
-                      padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: "'Barlow', sans-serif",
-                      background: 'rgba(248,113,113,0.1)', color: '#f87171',
-                      border: '1px solid rgba(248,113,113,0.3)',
-                    }}>
+                    <button onClick={() => deleteCrew(c.id)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
                       Remove
                     </button>
                   </div>
