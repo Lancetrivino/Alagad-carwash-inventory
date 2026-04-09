@@ -19,6 +19,7 @@ const VEHICLE_SIZES = [
 
 const PRICES = {
   'Alagad Wash (Wash, Vacuum, Tire Black)': { XSmall: 160, Small: 180, Medium: 200, Large: 230, 'X-Large': 250, 'XX-Large': 300, Motorcycle: 120, 'Motorcycle 400cc': 180 },
+  'Alagad Wash': { Motorcycle: 120, 'Motorcycle 400cc': 180 },
   'Premium Engine Wash': { XSmall: 500, Small: 550, Medium: 600, Large: 650, 'X-Large': 700, 'XX-Large': 750 },
   'Bac to Zero': { XSmall: 350, Small: 400, Medium: 450, Large: 500, 'X-Large': 550, 'XX-Large': 600 },
   'Interior Dressing': { XSmall: 100, Small: 120, Medium: 140, Large: 160, 'X-Large': 180, 'XX-Large': 200, Motorcycle: 200, 'Motorcycle 400cc': 250 },
@@ -39,12 +40,23 @@ const PRICES = {
   'Hand Wax (Motorcycle)': { Motorcycle: 200, 'Motorcycle 400cc': 250 },
 }
 
-const MOTO_SERVICES = ['Interior Dressing', 'Hand Wax (Motorcycle)']
+// Motorcycle explicit selectable services
+const MOTO_SERVICES = ['Alagad Wash', 'Interior Dressing', 'Hand Wax (Motorcycle)']
+
+// Combo prices: Wash + Wax OR Wash + Interior
 const MOTO_COMBOS = {
-  Motorcycle: { combo: ['Interior Dressing', 'Hand Wax (Motorcycle)'], comboPrice: 250 },
-  'Motorcycle 400cc': { combo: ['Interior Dressing', 'Hand Wax (Motorcycle)'], comboPrice: 300 },
+  Motorcycle: {
+    washAndWax: { services: ['Alagad Wash', 'Hand Wax (Motorcycle)'], price: 250 },
+    washAndInterior: { services: ['Alagad Wash', 'Interior Dressing'], price: 250 },
+  },
+  'Motorcycle 400cc': {
+    washAndWax: { services: ['Alagad Wash', 'Hand Wax (Motorcycle)'], price: 300 },
+    washAndInterior: { services: ['Alagad Wash', 'Interior Dressing'], price: 300 },
+  },
 }
+
 const MOTO_WASH = { Motorcycle: 120, 'Motorcycle 400cc': 180 }
+
 const VEHICLES = {
   XSmall: ['Eon', 'Wigo', 'Fit', 'Picanto'],
   Small: ['Sedan', 'Vios', 'Altis', 'Elantra', 'Accent', 'Focus', 'Jazz', 'Tricycle', 'Mirage', 'Reina', 'MG Car', 'Civic'],
@@ -55,7 +67,9 @@ const VEHICLES = {
   Motorcycle: ['Mio', 'Click', 'Beat', 'Aerox', 'NMAX', 'PCX', 'Raider', 'Barako', 'TMX'],
   'Motorcycle 400cc': ['CB400', 'CB500', 'Duke 390', 'Duke 400', 'Ninja 400', 'Z400', 'Versys 300', 'Royal Enfield'],
 }
+
 const isMoto = (size) => size === 'Motorcycle' || size === 'Motorcycle 400cc'
+
 const DETAILING_SERVICES = [
   'Glass Detailing', 'Mags Detailing', 'Engine Detailing',
   'Interior Detailing', 'Exterior Detailing', 'Ceramic Coating', 'Trim Black Restoration',
@@ -217,17 +231,28 @@ export default function LogbookPage() {
     setCrew(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name])
   }
 
+  // ── REVISED: Motorcycle amount is fully service-driven, no auto base wash ──
   function computeAmount() {
     if (!vehicleSize) return 0
     if (isMoto(vehicleSize)) {
-      const washPrice = MOTO_WASH[vehicleSize]
+      const hasWash = selectedServices.includes('Alagad Wash')
       const hasInterior = selectedServices.includes('Interior Dressing')
       const hasWax = selectedServices.includes('Hand Wax (Motorcycle)')
-      const combo = MOTO_COMBOS[vehicleSize]
-      if (hasInterior && hasWax) return washPrice + combo.comboPrice
-      if (hasInterior) return washPrice + (PRICES['Interior Dressing']?.[vehicleSize] || 0)
-      if (hasWax) return washPrice + (PRICES['Hand Wax (Motorcycle)']?.[vehicleSize] || 0)
-      return washPrice
+      const combos = MOTO_COMBOS[vehicleSize]
+      // All three: wash+wax combo + individual interior
+      if (hasWash && hasWax && hasInterior) {
+        return combos.washAndWax.price + (PRICES['Interior Dressing']?.[vehicleSize] || 0)
+      }
+      // Wash + Wax combo
+      if (hasWash && hasWax) return combos.washAndWax.price
+      // Wash + Interior combo
+      if (hasWash && hasInterior) return combos.washAndInterior.price
+      // Individual items only
+      let total = 0
+      if (hasWash) total += MOTO_WASH[vehicleSize]
+      if (hasInterior) total += PRICES['Interior Dressing']?.[vehicleSize] || 0
+      if (hasWax) total += PRICES['Hand Wax (Motorcycle)']?.[vehicleSize] || 0
+      return total
     }
     return selectedServices.reduce((sum, s) => sum + (PRICES[s]?.[vehicleSize] || 0), 0)
   }
@@ -238,16 +263,18 @@ export default function LogbookPage() {
   const amount = servicesAmount + lateNightFee + rollbarFee
   const total = Math.max(0, amount - (parseFloat(discount) || 0))
   const suggestedVehicles = vehicleSize ? VEHICLES[vehicleSize] || [] : []
+
+  // ── REVISED: Motorcycle shows its own 3 services; regular hides moto-only services ──
   const availableServices = vehicleSize
     ? isMoto(vehicleSize)
       ? MOTO_SERVICES
-      : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)')
-    : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)')
+      : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)' && s !== 'Alagad Wash')
+    : Object.keys(PRICES).filter(s => s !== 'Hand Wax (Motorcycle)' && s !== 'Alagad Wash')
 
   function buildCrewAssignment() {
     if (crew.length <= 1) return null
     if (splitMode === '5050') return { mode: '5050' }
-    if (splitMode === 'manual' && crew.length > 1 && Math.abs(manualTotal - 100) >= 0.01)
+    if (splitMode === 'manual') return { mode: 'manual', splits: manualSplits }
     return { mode: 'assign', assignments: serviceAssignments }
   }
 
@@ -282,17 +309,24 @@ export default function LogbookPage() {
     })
   }
 
+  // ── REVISED: Bill lines for motorcycle are fully explicit, no auto base wash line ──
   function getBillLines() {
     if (!vehicleSize) return []
     const lines = []
     if (isMoto(vehicleSize)) {
-      lines.push({ label: `Motorcycle Wash (${vehicleSize})`, amount: MOTO_WASH[vehicleSize], color: 'var(--text-secondary)' })
+      const hasWash = selectedServices.includes('Alagad Wash')
       const hasInterior = selectedServices.includes('Interior Dressing')
       const hasWax = selectedServices.includes('Hand Wax (Motorcycle)')
-      const combo = MOTO_COMBOS[vehicleSize]
-      if (hasInterior && hasWax) {
-        lines.push({ label: 'Interior Dressing + Hand Wax (Combo)', amount: combo.comboPrice, color: '#4ade80' })
+      const combos = MOTO_COMBOS[vehicleSize]
+      if (hasWash && hasWax && hasInterior) {
+        lines.push({ label: 'Alagad Wash + Hand Wax (Combo)', amount: combos.washAndWax.price, color: '#4ade80' })
+        lines.push({ label: 'Interior Dressing', amount: PRICES['Interior Dressing']?.[vehicleSize], color: 'var(--text-secondary)' })
+      } else if (hasWash && hasWax) {
+        lines.push({ label: 'Alagad Wash + Hand Wax (Combo)', amount: combos.washAndWax.price, color: '#4ade80' })
+      } else if (hasWash && hasInterior) {
+        lines.push({ label: 'Alagad Wash + Interior Dressing (Combo)', amount: combos.washAndInterior.price, color: '#4ade80' })
       } else {
+        if (hasWash) lines.push({ label: 'Alagad Wash', amount: MOTO_WASH[vehicleSize], color: 'var(--text-secondary)' })
         if (hasInterior) lines.push({ label: 'Interior Dressing', amount: PRICES['Interior Dressing']?.[vehicleSize], color: 'var(--text-secondary)' })
         if (hasWax) lines.push({ label: 'Hand Wax', amount: PRICES['Hand Wax (Motorcycle)']?.[vehicleSize], color: 'var(--text-secondary)' })
       }
@@ -305,18 +339,24 @@ export default function LogbookPage() {
     return lines
   }
 
-  const manualTotal = Object.values(manualSplits).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+  // ── REVISED: Use toFixed(1) rounding to handle decimal splits like 38.5 + 61.5 ──
+  const manualTotal = parseFloat(
+    Object.values(manualSplits).reduce((s, v) => s + (parseFloat(v) || 0), 0).toFixed(10)
+  )
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (isMoto(vehicleSize) && selectedServices.length === 0) { setError('Please select at least one service'); return }
     if (!isMoto(vehicleSize) && selectedServices.length === 0) { setError('Please select at least one service'); return }
     if (crew.length === 0) { setError('Please select at least one crew member'); return }
-    if (splitMode === 'manual' && crew.length > 1 && Math.abs(manualTotal - 100) > 0.1) { setError(`Manual split must total 100% (currently ${manualTotal}%)`); return }
+    // ── REVISED: Tighter epsilon so 38.5 + 61.5 = 100 passes correctly ──
+    if (splitMode === 'manual' && crew.length > 1 && Math.abs(manualTotal - 100) >= 0.01) {
+      setError(`Manual split must total 100% (currently ${parseFloat(manualTotal.toFixed(1))}%)`)
+      return
+    }
     setLoading(true); setError('')
 
-    const serviceLabel = isMoto(vehicleSize)
-      ? selectedServices.length === 0 ? 'Motorcycle Wash' : selectedServices.join(', ')
-      : selectedServices.join(', ')
+    const serviceLabel = selectedServices.join(', ')
 
     const now = new Date()
     const timeStr = now.toTimeString().split(' ')[0]
@@ -470,16 +510,19 @@ export default function LogbookPage() {
                 </div>
               </div>
 
+              {/* ── REVISED: Motorcycle info banner now shows combo hint, no auto-charge message ── */}
               {isMoto(vehicleSize) && (
                 <div style={{ background: 'rgba(46,141,232,0.08)', border: '1px solid rgba(46,141,232,0.2)', borderRadius: 10, padding: '12px 16px' }}>
-                  <div style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, marginBottom: 4 }}>🏍 Motorcycle Base Wash — ₱{MOTO_WASH[vehicleSize]}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Add-ons optional. Combo price when both selected.</div>
+                  <div style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, marginBottom: 4 }}>🏍 Motorcycle Services</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Wash + Wax or Wash + Interior = ₱{MOTO_COMBOS[vehicleSize]?.washAndWax.price} combo price
+                  </div>
                 </div>
               )}
 
               <div>
                 <label style={S.label}>
-                  {isMoto(vehicleSize) ? 'Add-on Services (optional)' : 'Services'}
+                  Services
                   {selectedServices.length > 0 && (
                     <span style={{ marginLeft: 8, background: 'var(--blue)', color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
                       {selectedServices.length} selected
@@ -496,8 +539,17 @@ export default function LogbookPage() {
                   {availableServices.map(serviceName => {
                     const checked = selectedServices.includes(serviceName)
                     const price = vehicleSize ? PRICES[serviceName]?.[vehicleSize] : null
-                    const isInCombo = isMoto(vehicleSize) && MOTO_COMBOS[vehicleSize]?.combo.includes(serviceName)
-                    const bothSelected = isMoto(vehicleSize) && selectedServices.includes('Interior Dressing') && selectedServices.includes('Hand Wax (Motorcycle)')
+
+                    // Detect active combo for badge display
+                    const hasWash = selectedServices.includes('Alagad Wash')
+                    const hasWax = selectedServices.includes('Hand Wax (Motorcycle)')
+                    const hasInterior = selectedServices.includes('Interior Dressing')
+                    const inWashWaxCombo = isMoto(vehicleSize) && hasWash && hasWax && !hasInterior &&
+                      (serviceName === 'Alagad Wash' || serviceName === 'Hand Wax (Motorcycle)')
+                    const inWashInteriorCombo = isMoto(vehicleSize) && hasWash && hasInterior && !hasWax &&
+                      (serviceName === 'Alagad Wash' || serviceName === 'Interior Dressing')
+                    const inCombo = inWashWaxCombo || inWashInteriorCombo
+
                     return (
                       <div key={serviceName} onClick={() => toggleService(serviceName)} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -518,11 +570,11 @@ export default function LogbookPage() {
                             <span style={{ fontSize: isMobile ? 13 : 12, color: checked ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: checked ? 600 : 400 }}>
                               {serviceName}
                             </span>
-                            {isInCombo && bothSelected && <span style={{ marginLeft: 6, fontSize: 10, color: '#4ade80', fontWeight: 600 }}>combo</span>}
+                            {inCombo && <span style={{ marginLeft: 6, fontSize: 10, color: '#4ade80', fontWeight: 600 }}>combo</span>}
                           </div>
                         </div>
                         {price && (
-                          <span style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, flexShrink: 0, opacity: isInCombo && bothSelected ? 0.6 : 1 }}>
+                          <span style={{ fontSize: 12, color: 'var(--blue-glow)', fontWeight: 600, flexShrink: 0, opacity: inCombo ? 0.6 : 1 }}>
                             ₱{price.toLocaleString()}
                           </span>
                         )}
@@ -530,7 +582,6 @@ export default function LogbookPage() {
                     )
                   })}
                 </div>
-                {isMoto(vehicleSize) && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>💡 Select both for combo price of ₱{MOTO_COMBOS[vehicleSize]?.comboPrice}</div>}
                 {!vehicleSize && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Select vehicle size to see services</div>}
               </div>
 
@@ -657,6 +708,7 @@ export default function LogbookPage() {
                     </div>
                   )}
 
+                  {/* ── REVISED: step="0.1" allows decimals like 38.5 / 61.5, wider input, tighter epsilon ── */}
                   {splitMode === 'manual' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {crew.map(c => (
@@ -666,15 +718,27 @@ export default function LogbookPage() {
                           </div>
                           <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, flex: 1 }}>{c}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                           <input type="number" min="0" max="100" step="0.1" value={manualSplits[c] || 0} onChange={e => setManualSplits(prev => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))} style={{ ...S.input, width: 90, padding: '8px 12px', textAlign: 'center' }} />
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={manualSplits[c] || 0}
+                              onChange={e => setManualSplits(prev => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))}
+                              style={{ ...S.input, width: 90, padding: '8px 12px', textAlign: 'center' }}
+                            />
                             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
                           </div>
                         </div>
                       ))}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, fontSize: 12, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Total:</span>
-                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.01 ? '#4ade80' : '#f87171' }}>{parseFloat(manualTotal.toFixed(1))}%</span>
-                        {Math.abs(manualTotal - 100) >= 0.01 && <span style={{ color: '#f87171', fontSize: 11 }}>must equal 100%</span>}
+                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.01 ? '#4ade80' : '#f87171' }}>
+                          {parseFloat(manualTotal.toFixed(1))}%
+                        </span>
+                        {Math.abs(manualTotal - 100) >= 0.01 && (
+                          <span style={{ color: '#f87171', fontSize: 11 }}>must equal 100%</span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -700,6 +764,8 @@ export default function LogbookPage() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Bill Breakdown</div>
                 {!vehicleSize ? (
                   <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select vehicle size to see breakdown</div>
+                ) : getBillLines().length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Select services to see breakdown</div>
                 ) : (
                   <>
                     {getBillLines().map((line, i) => (
