@@ -247,7 +247,7 @@ export default function LogbookPage() {
   function buildCrewAssignment() {
     if (crew.length <= 1) return null
     if (splitMode === '5050') return { mode: '5050' }
-    if (splitMode === 'manual') return { mode: 'manual', splits: manualSplits }
+    if (splitMode === 'manual' && crew.length > 1 && Math.abs(manualTotal - 100) >= 0.01)
     return { mode: 'assign', assignments: serviceAssignments }
   }
 
@@ -666,15 +666,15 @@ export default function LogbookPage() {
                           </div>
                           <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, flex: 1 }}>{c}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <input type="number" min="0" max="100" value={manualSplits[c] || 0} onChange={e => setManualSplits(prev => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))} style={{ ...S.input, width: 80, padding: '8px 12px', textAlign: 'center' }} />
+                           <input type="number" min="0" max="100" step="0.1" value={manualSplits[c] || 0} onChange={e => setManualSplits(prev => ({ ...prev, [c]: parseFloat(e.target.value) || 0 }))} style={{ ...S.input, width: 90, padding: '8px 12px', textAlign: 'center' }} />
                             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
                           </div>
                         </div>
                       ))}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, fontSize: 12, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Total:</span>
-                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.1 ? '#4ade80' : '#f87171' }}>{manualTotal}%</span>
-                        {Math.abs(manualTotal - 100) > 0.1 && <span style={{ color: '#f87171', fontSize: 11 }}>must equal 100%</span>}
+                        <span style={{ fontWeight: 700, color: Math.abs(manualTotal - 100) < 0.01 ? '#4ade80' : '#f87171' }}>{parseFloat(manualTotal.toFixed(1))}%</span>
+                        {Math.abs(manualTotal - 100) >= 0.01 && <span style={{ color: '#f87171', fontSize: 11 }}>must equal 100%</span>}
                       </div>
                     </div>
                   )}
